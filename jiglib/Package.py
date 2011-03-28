@@ -1,4 +1,4 @@
-__all__ = ['Repository', 'World', 'Package', 'writeFile', 'GNUPackage', 'mode']
+__all__ = ['Repository', 'World', 'Package', 'writeFile', 'copyX', 'GNUPackage', 'CMakePackage', 'mode']
 
 import os, os.path, shutil, tempfile, glob
 import tarfile, zipfile, subprocess, re, string
@@ -9,6 +9,21 @@ except:
 
 
 mode = 'src'
+
+
+def copyX(src, dst):
+    dir=os.path.dirname(dst)
+    if not os.path.exists(dir): os.makedirs(dir)
+
+    if os.path.isdir(src):
+        shutil.copytree(src, dst, symlinks=True)
+    elif os.path.islink(src):
+        dir,fname = os.path.split(dst)
+        linkto = os.readlink(src)
+        os.symlink(linkto, dst)
+    else:
+        shutil.copy2(src, dst)
+
 
 def writeFile(rootpath, relpath, data, mode=0666, uid=-1, gid=-1):
     fname = os.path.join(rootpath, relpath)
@@ -58,38 +73,47 @@ class Repository(object):
         # check if all features have been installed
         installed=True
         for obj in package.features:
-            dir=package.dirName(obj)
-            if not os.path.isdir(os.path.join(self.rootDir, dir)):
-                installed=False
+            dir=self.getObjPath(obj, sig=package.sig())
+            if dir==None: installed=False
         if installed: return # nothing to do
 
         # add all dependencies
         for _,dep in package.deps.iteritems():
             self.addPackage(dep)
 
-        # prepare package
         package.workDir = os.path.join(self.tmpDir, 'build.%s' % package.dirName())
-        package._fetch()
-        package._patch()
 
         # prepare world for build
-        worldDir = tempfile.mkdtemp(dir=self.tmpDir)
+        worldDir = os.path.join(self.tmpDir, 'world.%s' % package.dirName())
+        if os.path.exists(worldDir):
+            shutil.rmtree(worldDir)
         world = World(self, rootDir=worldDir)
         for _,dep in package.deps.iteritems():
             world.addPackage(dep)
         world.make()
-        package._build(worldDir)
-        world.unmake()
 
+        if not os.path.exists(os.path.join(package.workDir, 'finished')):
+            # prepare package
+            package._fetch()
+            package._patch()
+
+            package._build(worldDir)
+            writeFile(package.workDir, 'finished', '1') # mark it as finished
+
+        world.unmake()
         sig=package.sig()
         # install, diff, and add to repo
         for obj in package.features:
+            dir=self.getObjPath(obj, sig=package.sig())
+            if not dir==None: continue # this feature has been installed
+
             world.make()
             package._install(worldDir,obj)
             world.unmake()
 
             dir = package.dirName(obj)
-            shutil.move(worldDir, os.path.join(self.rootDir, dir))
+            if not os.path.exists(os.path.join(self.rootDir, dir)):
+                shutil.move(worldDir, os.path.join(self.rootDir, dir))
             self.objects.append((obj, package.version, sig, dir))
 
         # clean up
@@ -161,24 +185,25 @@ class World(object):
             shutil.rmtree(self.rootDir)
 
 class Package(object):
-    name = 'Unknown'
-    version = '1.0'
-    prereqs = []
-    prereqs_src = []
+    def _setDefault(self, name, val):
+        if not (self.__dict__.has_key(name) or 
+                self.__class__.__dict__.has_key(name)):
+            self.__dict__[name] = val
 
-    src_url = None
+    def __init__(self, *args, **kwargs):
+        self._setDefault('name', 'Unknown')
+        self._setDefault('version', '1.0')
+        self._setDefault('prereqs', [])
+        self._setDefault('prereqs_src', [])
+        self._setDefault('src_url', None)
 
-    def __init__(self, *args):
         self.deps = {}
 
-        deps,kwargs=[],{}
-        if len(args)>0: deps=args[0]
-        if len(args)>1: kwargs=args[1]
-        for dep in deps:
+        for dep in args:
             self.deps[dep.name] = dep
 
         # possible options
-        if not self.__class__.__dict__.has_key('optionList'):
+        if not self.__dict__.has_key('optionList'):
             self.optionList = []
 
         # selected options
@@ -209,7 +234,7 @@ class Package(object):
         self.workDir = None
 
     def _opt_merge_lists(self, prefix):
-        maps = [self.__dict__, self.__class__.__dict__]
+        maps = [self.__dict__,self.__class__.__dict__]
         appends = []
         deletes = []
         for map in maps:
@@ -302,7 +327,7 @@ class Package(object):
             tf = tarfile.open(src_file)
             tf.extractall(self.workDir)
         elif zipfile.is_zipfile(src_file):
-            zf = zipfile.open(src_file)
+            zf = zipfile.ZipFile(src_file)
             zf.extractall(self.workDir)
 
         src_dir = os.path.join(self.workDir, 'src')
@@ -345,61 +370,136 @@ class Package(object):
             res.append(re.sub('\$\{([a-zA-Z_]+)\}', _var, o))
         return res
 
+# {{{ class GNUPackage
 class GNUPackage(Package):
-    autoconf = ['autoconf',]
-    conf_args = []
-
     def __init__(self, *args, **kwargs):
-        super(GNUPackage, self).__init__(args, kwargs)
+        super(GNUPackage, self).__init__(*args, **kwargs)
+        self._setDefault('autoconf', ['autoconf',])
+        self._setDefault('conf_args', [])
+        self._setDefault('conf_cmd', ['./configure'])
+        self._setDefault('make_cmd', ['gmake', '-j4'])
+        self._setDefault('make_install_cmd', ['gmake', 'install'])
+        self._setDefault('dest_path_fixes', ['lib/pkgconfig/*.pc'])
 
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
 
+        env = os.environ
+        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
+        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
+
         # autoconf
         if not os.path.exists(os.path.join(srcDir, 'configure')):
             for cmd in self.autoconf:
-                ret = subprocess.call(cmd, cwd=srcDir)
+                ret = subprocess.call(cmd, cwd=srcDir, env=env)
                 if not ret==0:
                     raise Exception('Failed to execute %s' % str(cmd))
 
         # configure
-        cmd = ['./configure']
+        cmd = self.conf_cmd
         cmd.extend(self._opt_merge_lists('conf_args'))
         cmd = self._subst_vars(cmd, tgtDir)
 
         print cmd
-        ret = subprocess.call(cmd, True, cwd=srcDir)
+        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
-        cmd = ['make', '-j4']
-        ret = subprocess.call(cmd, cwd=srcDir)
+        cmd = self.make_cmd
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
-        cmd = ['make', 'install']
+        cmd = self.make_install_cmd
 
         print cmd
-        ret = subprocess.call(cmd, cwd=srcDir)
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
-        # fix pkgconfig
-        for f in glob.glob('%s/lib/pkgconfig/*.pc' % tgtDir):
-            subTxtFile(f, tgtDir, 'JIG_WORLD_DIR')
+        # fixes
+        for fglob in self.dest_path_fixes:
+            for path in glob.glob('%s/%s' % (tgtDir,fglob)):
+                subTxtFile(path, tgtDir, 'JIG_WORLD_DIR')
 
     def installWorld(self, wldDir, objDir, obj):
         fileList = super(GNUPackage, self).installWorld(wldDir, objDir, obj)
 
         # fix pkgconfig
-        for f in glob.glob('%s/lib/pkgconfig/*.pc' % objDir):
-            tgtPath = os.path.join(wldDir, os.path.relpath(f, objDir))
-            os.unlink(tgtPath)
-            shutil.copy(f,tgtPath)
-            subTxtFile(tgtPath, 'JIG_WORLD_DIR', wldDir)
+        for fglob in self.dest_path_fixes:
+            for path in glob.glob('%s/%s' % (objDir,fglob)):
+                tgtPath = os.path.join(wldDir, os.path.relpath(path, objDir))
+                os.unlink(tgtPath)
+                shutil.copy(path,tgtPath)
+                subTxtFile(tgtPath, 'JIG_WORLD_DIR', wldDir)
 
         return fileList
+# }}}
 
+# {{{ class CMakePackage
+class CMakePackage(Package):
+    def __init__(self, *args, **kwargs):
+        super(CMakePackage, self).__init__(*args, **kwargs)
+        self._setDefault('conf_args', [])
+        self._setDefault('conf_cmd', ['cmake'])
+        self._setDefault('make_cmd', ['gmake', '-j4'])
+        self._setDefault('make_install_cmd', ['gmake', 'install'])
+        self._setDefault('dest_path_fixes', ['lib/pkgconfig/*.pc'])
+
+    def build(self, tgtDir):
+        srcDir = os.path.join(self.workDir, 'src')
+        bldDir = os.path.join(self.workDir, 'build')
+        if os.path.exists(bldDir): shutil.rmtree(bldDir)
+        os.makedirs(bldDir)
+
+        env = os.environ
+        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
+        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
+
+        # configure
+        cmd = self.conf_cmd
+        cmd.extend(self._opt_merge_lists('conf_args'))
+        cmd = self._subst_vars(cmd, tgtDir)
+        cmd.append('../src')
+
+        print cmd
+        ret = subprocess.call(cmd, True, cwd=bldDir, env=env)
+        if not ret==0:
+            raise Exception('Failed to execute %s' % str(cmd))
+
+        cmd = self.make_cmd
+        ret = subprocess.call(cmd, cwd=bldDir, env=env)
+        if not ret==0:
+            raise Exception('Failed to execute %s' % str(cmd))
+
+    def install(self, tgtDir, obj):
+        srcDir = os.path.join(self.workDir, 'src')
+        bldDir = os.path.join(self.workDir, 'build')
+        cmd = self.make_install_cmd
+
+        print cmd
+        ret = subprocess.call(cmd, cwd=bldDir, env=env)
+        if not ret==0:
+            raise Exception('Failed to execute %s' % str(cmd))
+
+        # fixes
+        for fglob in self.dest_path_fixes:
+            for path in glob.glob('%s/%s' % (tgtDir,fglob)):
+                subTxtFile(path, tgtDir, 'JIG_WORLD_DIR')
+
+    def installWorld(self, wldDir, objDir, obj):
+        fileList = super(GNUPackage, self).installWorld(wldDir, objDir, obj)
+
+        # fix pkgconfig
+        for fglob in self.dest_path_fixes:
+            for path in glob.glob('%s/%s' % (objDir,fglob)):
+                tgtPath = os.path.join(wldDir, os.path.relpath(path, objDir))
+                os.unlink(tgtPath)
+                shutil.copy(path,tgtPath)
+                subTxtFile(tgtPath, 'JIG_WORLD_DIR', wldDir)
+
+        return fileList
+# }}}
 
