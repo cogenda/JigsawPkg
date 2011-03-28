@@ -60,7 +60,9 @@ class Repository(object):
 
     def scan(self):
         for dir in os.listdir(self.rootDir):
-            if not os.path.isdir(os.path.join(self.rootDir,dir)): continue
+            path = os.path.join(self.rootDir,dir)
+            if os.path.islink(path) or not os.path.isdir(path): continue
+            if dir.startswith('tmp.'): continue   # temp dirs where packages are being built
 
             parts = dir.split('.')
             self.objects.append((parts[0],                  # name
@@ -84,36 +86,56 @@ class Repository(object):
         package.workDir = os.path.join(self.tmpDir, 'build.%s' % package.dirName())
 
         # prepare world for build
-        worldDir = os.path.join(self.tmpDir, 'world.%s' % package.dirName())
-        if os.path.exists(worldDir):
-            shutil.rmtree(worldDir)
-        world = World(self, rootDir=worldDir)
-        for _,dep in package.deps.iteritems():
-            world.addPackage(dep)
-        world.make()
+        tgtDir   = os.path.join(self.rootDir, package.dirName())
+        sig=package.sig()
 
+        worlds=[] 
+        for i,obj in enumerate(package.features):
+            if not self.getObjPath(obj, sig=package.sig())==None:
+                continue # this feature has been installed
+
+            worldDirName = 'tmp.%s'% package.dirName(obj)
+            worldDir = os.path.join(self.rootDir, worldDirName)
+            if os.path.exists(worldDir):
+                shutil.rmtree(worldDir)
+            os.makedirs(worldDir)
+            if i==0:
+                if os.path.lexists(tgtDir): os.unlink(tgtDir)
+                os.symlink(worldDirName, tgtDir)   # first (default) feature uses tgtDir
+                world = World(self, rootDir=tgtDir)
+            else:
+                world = World(self, rootDir=worldDir)
+
+            for _,dep in package.deps.iteritems():
+                world.addPackage(dep)
+            world.make()
+            worlds.append(world)
+
+        # build if necessary
         if not os.path.exists(os.path.join(package.workDir, 'finished')):
             # prepare package
             package._fetch()
             package._patch()
 
-            package._build(worldDir)
+            package._build(tgtDir)
             writeFile(package.workDir, 'finished', '1') # mark it as finished
-
-        world.unmake()
-        sig=package.sig()
+        
         # install, diff, and add to repo
-        for obj in package.features:
-            dir=self.getObjPath(obj, sig=package.sig())
-            if not dir==None: continue # this feature has been installed
+        for i,obj in enumerate(package.features):
+            if not self.getObjPath(obj, sig=package.sig())==None:
+                continue # this feature has been installed
 
-            world.make()
-            package._install(worldDir,obj)
+            world = worlds[i]
+            package._install(world.rootDir,obj)
             world.unmake()
 
             dir = package.dirName(obj)
-            if not os.path.exists(os.path.join(self.rootDir, dir)):
-                shutil.move(worldDir, os.path.join(self.rootDir, dir))
+            if i==0:
+                linkto = os.readlink(tgtDir)
+                os.unlink(tgtDir)  # remove the symlink for default feature
+                os.rename(os.path.join(self.rootDir, linkto), os.path.join(self.rootDir, dir))
+            else:
+                os.rename(world.rootDir, os.path.join(self.rootDir, dir))
             self.objects.append((obj, package.version, sig, dir))
 
         # clean up
@@ -381,12 +403,16 @@ class GNUPackage(Package):
         self._setDefault('make_install_cmd', ['gmake', 'install'])
         self._setDefault('dest_path_fixes', ['lib/pkgconfig/*.pc'])
 
-    def build(self, tgtDir):
-        srcDir = os.path.join(self.workDir, 'src')
-
+    def _commonEnv(self, tgtDir):
         env = os.environ
         env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
         env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
+        return env
+
+    def build(self, tgtDir):
+        srcDir = os.path.join(self.workDir, 'src')
+
+        env = self._commonEnv(tgtDir)
 
         # autoconf
         if not os.path.exists(os.path.join(srcDir, 'configure')):
@@ -413,6 +439,8 @@ class GNUPackage(Package):
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
         cmd = self.make_install_cmd
+
+        env = self._commonEnv(tgtDir)
 
         print cmd
         ret = subprocess.call(cmd, cwd=srcDir, env=env)
@@ -448,15 +476,19 @@ class CMakePackage(Package):
         self._setDefault('make_install_cmd', ['gmake', 'install'])
         self._setDefault('dest_path_fixes', ['lib/pkgconfig/*.pc'])
 
+    def _commonEnv(self, tgtDir):
+        env = os.environ
+        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
+        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
+        return env
+
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
         bldDir = os.path.join(self.workDir, 'build')
         if os.path.exists(bldDir): shutil.rmtree(bldDir)
         os.makedirs(bldDir)
 
-        env = os.environ
-        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
-        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
+        env = self._commonEnv(tgtDir)
 
         # configure
         cmd = self.conf_cmd
@@ -478,6 +510,8 @@ class CMakePackage(Package):
         srcDir = os.path.join(self.workDir, 'src')
         bldDir = os.path.join(self.workDir, 'build')
         cmd = self.make_install_cmd
+
+        env = self._commonEnv(tgtDir)
 
         print cmd
         ret = subprocess.call(cmd, cwd=bldDir, env=env)
