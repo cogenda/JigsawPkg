@@ -2,6 +2,7 @@ __all__ = ['GNUPackage', 'CMakePackage', 'PythonPackage']
 
 import os, os.path, shutil, tempfile, glob
 import subprocess, re, string
+from JigsawPkg import *
 
 # {{{ class GNUPackage
 class GNUPackage(Package):

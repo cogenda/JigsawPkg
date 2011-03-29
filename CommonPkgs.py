@@ -1,5 +1,5 @@
 from jiglib.JigsawPkg import *
-from jiglib.Package import *
+from jiglib.Packages import *
 
 import os, os.path, shutil, glob, subprocess
 
