@@ -1,4 +1,5 @@
-__all__ = ['Repository', 'World', 'Package', 'writeFile', 'copyX', 'GNUPackage', 'CMakePackage', 'mode']
+__all__ = ['Repository', 'World', 'Package', 'writeFile', 'copyX', 'subTxtFile', 
+           'GNUPackage', 'CMakePackage', 'PythonPackage', 'mode']
 
 import os, os.path, shutil, tempfile, glob
 import tarfile, zipfile, subprocess, re, string
@@ -10,7 +11,7 @@ except:
 
 mode = 'src'
 
-
+# {{{ utils
 def copyX(src, dst):
     dir=os.path.dirname(dst)
     if not os.path.exists(dir): os.makedirs(dir)
@@ -39,7 +40,7 @@ def writeFile(rootpath, relpath, data, mode=0666, uid=-1, gid=-1):
 
 def subTxtFile(path, pattern, replace, mode='plain'):
     fin = open(path, 'r')
-    lines = fin.readlines(1024)
+    lines = fin.readlines()
     fin.close()
 
     fout = open(path, 'w')
@@ -49,7 +50,9 @@ def subTxtFile(path, pattern, replace, mode='plain'):
         else:
             fout.write(string.replace(l, pattern, replace))
     fout.close()
+# }}}
 
+# {{{ class Repository
 class Repository(object):
     def __init__(self, rootDir, tmpDir='/tmp'):
         self.rootDir = rootDir
@@ -89,7 +92,7 @@ class Repository(object):
         tgtDir   = os.path.join(self.rootDir, package.dirName())
         sig=package.sig()
 
-        worlds=[] 
+        worlds=[None]*len(package.features)
         for i,obj in enumerate(package.features):
             if not self.getObjPath(obj, sig=package.sig())==None:
                 continue # this feature has been installed
@@ -109,10 +112,13 @@ class Repository(object):
             for _,dep in package.deps.iteritems():
                 world.addPackage(dep)
             world.make()
-            worlds.append(world)
+            worlds[i] = world
 
         # build if necessary
         if not os.path.exists(os.path.join(package.workDir, 'finished')):
+            if not os.path.exists(package.workDir):
+                os.makedirs(package.workDir)
+
             # prepare package
             package._fetch()
             package._patch()
@@ -121,6 +127,8 @@ class Repository(object):
             writeFile(package.workDir, 'finished', '1') # mark it as finished
         
         # install, diff, and add to repo
+        print worlds
+        print package.features
         for i,obj in enumerate(package.features):
             if not self.getObjPath(obj, sig=package.sig())==None:
                 continue # this feature has been installed
@@ -149,7 +157,9 @@ class Repository(object):
 
             return os.path.join(self.rootDir, oDir)
         return None
+# }}}
 
+# {{{ class World
 class World(object):
     def __init__(self, repo, rootDir=None):
         self.repo = repo
@@ -170,11 +180,19 @@ class World(object):
         '''make world, if any requested packages aren't installed yet,
            install them.'''
 
-        def _make_package(package):
-            for _, dep in package.deps.iteritems():
-                _make_package(dep)          # make deps first
+        def _activate_package(package):
+            _, installed = self.packages[package.sig()]
+            if installed: return
 
-            for feature in package.features:
+            for _, dep in package.deps.iteritems():
+                _activate_package(dep)          # activate deps first
+
+            features = package.features
+            if package.name in features:    # the default feature is requested
+                features = [package.name]   # no need to activate the component 
+
+            for feature in features:
+                print 'activating %s' % feature
                 oDir = self.repo.getObjPath(feature, sig=package.sig())
                 lst = package._installWorld(self.rootDir, oDir, feature)
                 self.fileList.extend(lst)
@@ -189,12 +207,11 @@ class World(object):
                 os.makedirs(dir)
 
         for _,(package, installed) in self.packages.iteritems():
-            if not installed:
-                print 'make %s' % ','.join(package.features)
-                _make_package(package)
+            _activate_package(package)
 
     def unmake(self):
         for f in self.fileList:
+            if f.endswith('python'): print '----', f
             os.unlink(f)
         self.fileList=[]
 
@@ -206,6 +223,9 @@ class World(object):
         if os.path.exists(self.rootDir):
             shutil.rmtree(self.rootDir)
 
+# }}}
+
+# {{{ class Package
 class Package(object):
     def _setDefault(self, name, val):
         if not (self.__dict__.has_key(name) or 
@@ -218,15 +238,12 @@ class Package(object):
         self._setDefault('prereqs', [])
         self._setDefault('prereqs_src', [])
         self._setDefault('src_url', None)
+        self._setDefault('optionList', []) # possible options
 
         self.deps = {}
 
         for dep in args:
             self.deps[dep.name] = dep
-
-        # possible options
-        if not self.__dict__.has_key('optionList'):
-            self.optionList = []
 
         # selected options
         self.options = kwargs.get('options', [])
@@ -337,20 +354,25 @@ class Package(object):
         if os.path.exists(src_dir):
             return
 
-        src_file=None
+        src_file, isarchive = None, False
         if self.src_url.startswith('http'):
             pass
+        elif self.src_url.startswith('ssh+git'):
+            cmd = ['git', 'clone', self.src_url]
+            ret = subprocess.call(cmd, cwd=self.workDir)
         else:
             if not os.path.exists(self.src_url):
-                raise Error
+                raise Exception
             src_file = self.src_url
-            
-        if tarfile.is_tarfile(src_file):
-            tf = tarfile.open(src_file)
-            tf.extractall(self.workDir)
-        elif zipfile.is_zipfile(src_file):
-            zf = zipfile.ZipFile(src_file)
-            zf.extractall(self.workDir)
+            isarchive = True
+
+        if isarchive:
+            if tarfile.is_tarfile(src_file):
+                tf = tarfile.open(src_file)
+                tf.extractall(self.workDir)
+            elif zipfile.is_zipfile(src_file):
+                zf = zipfile.ZipFile(src_file)
+                zf.extractall(self.workDir)
 
         src_dir = os.path.join(self.workDir, 'src')
         if os.path.lexists(src_dir):
@@ -382,20 +404,27 @@ class Package(object):
         print 'installing package %s v%s to world %s' % (obj, self.version, wldDir)
         return self.installWorld(wldDir, objDir, obj)
 
-    def _subst_vars(self, lst, tgtDir):
+    def _subst_vars(self, lst_or_dict, tgtDir):
         def _var(match):
             name=match.group(1)
             if name=='TGTDIR':      return tgtDir
 
-        res = []
-        for o in lst:
-            res.append(re.sub('\$\{([a-zA-Z_]+)\}', _var, o))
-        return res
+        if isinstance(lst_or_dict, list):
+            res = []
+            for o in lst_or_dict:
+                res.append(re.sub('\$\{([a-zA-Z_]+)\}', _var, o))
+            return res
+        elif isinstance(lst_or_dict, dict):
+            res = {}
+            for k,v in lst_or_dict.iteritems():
+                res[k] = re.sub('\$\{([a-zA-Z_]+)\}', _var, v)
+            return res
+# }}}
 
 # {{{ class GNUPackage
 class GNUPackage(Package):
     def __init__(self, *args, **kwargs):
-        super(GNUPackage, self).__init__(*args, **kwargs)
+        self._setDefault('env', {})
         self._setDefault('autoconf', ['autoconf',])
         self._setDefault('conf_args', [])
         self._setDefault('conf_cmd', ['./configure'])
@@ -403,11 +432,13 @@ class GNUPackage(Package):
         self._setDefault('make_install_cmd', ['gmake', 'install'])
         self._setDefault('dest_path_fixes', ['lib/pkgconfig/*.pc'])
 
+        super(GNUPackage, self).__init__(*args, **kwargs)
+
     def _commonEnv(self, tgtDir):
-        env = os.environ
+        env = dict(os.environ, **self.env)
         env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
         env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
-        return env
+        return self._subst_vars(env, tgtDir)
 
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
@@ -415,7 +446,7 @@ class GNUPackage(Package):
         env = self._commonEnv(tgtDir)
 
         # autoconf
-        if not os.path.exists(os.path.join(srcDir, 'configure')):
+        if not os.path.exists(os.path.join(srcDir, 'configure')) and self.autoconf:
             for cmd in self.autoconf:
                 ret = subprocess.call(cmd, cwd=srcDir, env=env)
                 if not ret==0:
@@ -469,18 +500,20 @@ class GNUPackage(Package):
 # {{{ class CMakePackage
 class CMakePackage(Package):
     def __init__(self, *args, **kwargs):
-        super(CMakePackage, self).__init__(*args, **kwargs)
+        self._setDefault('env', {})
         self._setDefault('conf_args', [])
         self._setDefault('conf_cmd', ['cmake'])
         self._setDefault('make_cmd', ['gmake', '-j4'])
         self._setDefault('make_install_cmd', ['gmake', 'install'])
         self._setDefault('dest_path_fixes', ['lib/pkgconfig/*.pc'])
 
+        super(CMakePackage, self).__init__(*args, **kwargs)
+
     def _commonEnv(self, tgtDir):
-        env = os.environ
+        env = dict(os.environ, **self.env)
         env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
         env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
-        return env
+        return self._subst_vars(env, tgtDir)
 
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
@@ -535,5 +568,60 @@ class CMakePackage(Package):
                 subTxtFile(tgtPath, 'JIG_WORLD_DIR', wldDir)
 
         return fileList
+# }}}
+
+# {{{ class PythonPackage
+class PythonPackage(Package):
+    def __init__(self, *args, **kwargs):
+        self._setDefault('env', {})
+        self._setDefault('build_args', [])
+        self._setDefault('build_verb', 'build')
+        self._setDefault('build_cmd',   ['python', 'setup.py'])
+        self._setDefault('install_args', [])
+        self._setDefault('install_verb', 'install')
+        self._setDefault('install_cmd', ['python', 'setup.py'])
+
+        super(PythonPackage, self).__init__(*args, **kwargs)
+
+    def _commonEnv(self, tgtDir):
+        env = dict(os.environ, **self.env)
+        #env['PYTHONHOME'] = tgtDir
+        #env['PYTHONDONTWRITEBYTECODE'] = '1'
+        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
+        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
+        return self._subst_vars(env, tgtDir)
+
+    def build(self, tgtDir):
+        srcDir = os.path.join(self.workDir, 'src')
+
+        env = self._commonEnv(tgtDir)
+
+        # build
+        cmd = self.build_cmd
+        cmd.extend(self._opt_merge_lists('build_args'))
+        cmd.append(self.build_verb)
+        cmd = self._subst_vars(cmd, tgtDir)
+
+        print cmd
+        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        if not ret==0:
+            raise Exception('Failed to execute %s' % str(cmd))
+
+    def install(self, tgtDir, obj):
+        srcDir = os.path.join(self.workDir, 'src')
+
+        env = self._commonEnv(tgtDir)
+
+        # install
+        cmd = self.install_cmd
+        cmd.extend(self._opt_merge_lists('install_args'))
+        cmd.append(self.install_verb)
+        cmd = self._subst_vars(cmd, tgtDir)
+
+        print cmd
+        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        if not ret==0:
+            raise Exception('Failed to execute %s' % str(cmd))
+
 # }}}
 
