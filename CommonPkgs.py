@@ -1,7 +1,8 @@
 from jiglib.JigsawPkg import *
 from jiglib.Packages import *
+from jiglib.Util import *
 
-import os, os.path, shutil, glob, subprocess
+import os, os.path, shutil, glob, subprocess, tempfile
 
 # {{{ CGNSLib
 class CGNSLib(GNUPackage):
@@ -277,17 +278,120 @@ class Scipy(PythonPackage):
            'LDFLAGS':   '-L/usr/lib64/atlas'}
 # }}}
 
-ICC_DIR = '/opt/intel/Compiler/11.1/038'
-ICC_BIN_DIR = os.path.join(ICC_DIR, 'bin', 'intel64')
-ICC_LIB_DIR = os.path.join(ICC_DIR, 'lib', 'intel64')
-MKL_DIR = '/opt/intel/mkl/10.2.0.013'
-MKL_INC_DIR = os.path.join(MKL_DIR, 'include')
-MKL_LIB_DIR = os.path.join(MKL_DIR, 'lib', 'em64t')
+# {{{ IntelCompiler
+class IntelCompiler(SystemPackage):
+    name = 'icc'
+    version = '1.0'
+    features = ['icc', 'icc-redist']
 
-MKL_LIB_PREFIX = 'libmkl_'
-LIB_EXT = '.a'
-MKL_LIB_SUFFIX = '_lp64'
+    def __init__(self, envsh, arch='intel64'):
+        self.BINDIR = None
+        self.LIBDIR = None
+        self.LDLIBDIR = None
+        self.LIBEXT = '.a'
 
+        tmpdir = tempfile.mkdtemp()
+        str ='''#!/bin/sh
+source %s %s
+echo $PATH
+echo $LIBRARY_PATH
+echo $LD_LIBRARY_PATH
+''' % (envsh, arch)
+
+        writeFile(tmpdir, 'printenv.sh', str, 0755)
+        output = subprocess.Popen(os.path.join(tmpdir,'printenv.sh'),
+                                  cwd=tmpdir,
+                                  stdout=subprocess.PIPE).communicate()[0]
+        lines = output.split('\n')
+        for i,(name,var) in enumerate([('PATH', 'BINDIR'),
+                                       ('LIBRARY_PATH', 'LIBDIR'),
+                                       ('LD_LIBRARY_PATH', 'LDLIBDIR')]):
+            lst = lines[i].split(':')
+            oldlst = os.environ.get(name, '').split(':')
+            for dir in lst:
+                if len(dir)==0: continue
+                if not dir in oldlst:
+                    self.__dict__[var] = dir
+                    break
+
+    def _search_lib(self, dirs, f):
+        for dir in dirs:
+            path = os.path.join(dir,f)
+            if os.path.exists(path):
+                return path
+        raise Exception('cannot find %s in %s' % (f, str(dirs)))
+
+    def ifcore_libs(self):
+        libs = []
+        for lib in ['libifcoremt']:
+            f = ''.join((lib, self.LIBEXT))
+            libs.append(self._search_lib([self.LIBDIR], f))
+        return libs
+
+# }}}
+
+# {{{ MKL Library
+class MKL(SystemPackage):
+    name = 'mkl'
+    version = '1.0'
+    features = ['mkl', 'mkl-redist']
+
+    def __init__(self, envsh, arch=''):
+        self.INCDIR = None
+        self.LIBDIR = None
+        self.LDLIBDIR = None
+        self.LIBPREFIX = 'libmkl_'
+        self.LIBSUFFIX = '_lp64'
+        self.LIBEXT = '.a'
+
+        tmpdir = tempfile.mkdtemp()
+        str ='''#!/bin/sh
+source %s %s
+echo $INCLUDE
+echo $LIBRARY_PATH
+echo $LD_LIBRARY_PATH
+''' % (envsh, arch)
+
+        writeFile(tmpdir, 'printenv.sh', str, 0755)
+        output = subprocess.Popen(os.path.join(tmpdir,'printenv.sh'),
+                                  cwd=tmpdir,
+                                  stdout=subprocess.PIPE).communicate()[0]
+        lines = output.split('\n')
+        for i,(name,var) in enumerate([('INCLUDE', 'INCDIR'),
+                                       ('LIBRARY_PATH', 'LIBDIR'),
+                                       ('LD_LIBRARY_PATH', 'LDLIBDIR')]):
+            lst = lines[i].split(':')
+            oldlst = os.environ.get(name, '').split(':')
+            for dir in lst:
+                if len(dir)==0: continue
+                if not dir in oldlst:
+                    self.__dict__[var] = dir
+                    break
+
+    def _search_lib(self, dirs, f):
+        for dir in dirs:
+            path = os.path.join(dir,f)
+            if os.path.exists(path):
+                return path
+        raise Exception('cannot find %s in %s' % (f, str(dirs)))
+
+    def basic_libs(self):
+        libs = []
+        for lib in ['intel', 'blas95', 'lapack95', 'blacs']:
+            f = ''.join((self.LIBPREFIX, lib, self.LIBSUFFIX, self.LIBEXT))
+            libs.append(self._search_lib([self.LIBDIR], f))
+        for lib in ['core', 'sequential']:
+            f = ''.join((self.LIBPREFIX, lib, self.LIBEXT))
+            libs.append(self._search_lib([self.LIBDIR], f))
+        return libs
+
+    def scalapack_libs(self):
+        libs = []
+        for lib in ['scalapack']:
+            f = ''.join((self.LIBPREFIX, lib, self.LIBSUFFIX, self.LIBEXT))
+            libs.append(self._search_lib([self.LIBDIR], f))
+        return libs
+# }}}
 
 # {{{ Petsc
 class Petsc(GNUPackage):
@@ -317,30 +421,22 @@ class Petsc(GNUPackage):
                 '--download-scalapack=1',
                 ]
     # MKL
-    MKL_LIBS= [ '%s/%s%s%s%s' % (MKL_LIB_DIR, MKL_LIB_PREFIX, lib, MKL_LIB_SUFFIX, LIB_EXT)
-                    for lib in ['intel', 'blas95', 'lapack95', 'blacs'] ]
-    MKL_LIBS.extend( ['%s/%s%s%s' % (MKL_LIB_DIR, MKL_LIB_PREFIX, lib, LIB_EXT)
-                    for lib in ['core', 'sequential'] ] )
-
-    MKL_SCALAPACK_LIBS = [
-                '%s/%s%s%s%s' % (MKL_LIB_DIR, MKL_LIB_PREFIX, lib, MKL_LIB_SUFFIX, LIB_EXT)
-                    for lib in ['scalapack'] ]
-    MKL_SCALAPACK_LIBS.append( '%s/libifcoremt%s' % ( ICC_LIB_DIR, LIB_EXT ) )
-
     conf_args_mkl_append = [
-                '--with-blacs-include=%s'       % MKL_INC_DIR,
-                '--with-blas-include=%s'        % MKL_INC_DIR,
-                '--with-scalapack-include=%s'   % MKL_INC_DIR
+                '--with-blacs-include=${MKL_INC_DIR}',
+                '--with-blas-include=${MKL_INC_DIR}',
+                '--with-scalapack-include=${MKL_INC_DIR}',
+                '--with-blacs-lib=[${MKL_LIBS}]',
+                '--with-blas-lapack-lib=[${MKL_LIBS}]',
+                '--with-scalapack-lib=[${MKL_SCALAPACK_LIBS}]',
                 ]
-    conf_args_mkl_append.extend( [
-                '--with-blacs-lib=[%s]'           % ','.join(MKL_LIBS),
-                '--with-blas-lapack-lib=[%s]'     % ','.join(MKL_LIBS),
-                '--with-scalapack-lib=[%s]'       % ','.join(MKL_SCALAPACK_LIBS),
-                ] )
 
     prereqs_src = ['python']
+    prereqs_src_icc_append = ['icc']
+    prereqs_src_mkl_append = ['mkl']
+
     dest_path_fixes = ['conf/*']
 
+    # {{{ __init__()
     def __init__(self, *args, **kwargs):
         if not kwargs.has_key('options'):
             kwargs['options'] = ['default']
@@ -360,18 +456,50 @@ class Petsc(GNUPackage):
             ])
 
         super(Petsc, self).__init__(*args, **kwargs)
+    # }}}
 
+    # {{{ _commonEnv()
     def _commonEnv(self, vars):
         env = super(Petsc, self)._commonEnv(vars)
 
-        env['PATH']             = '%s:%s' % (ICC_BIN_DIR, env.get('PATH',''))
-        env['LD_LIBRARY_PATH']  = '%s:%s' % (':'.join([ICC_LIB_DIR, MKL_LIB_DIR]),
-                                             env.get('LD_LIBRARY_PATH',''))
+        paths, ld_paths = [], []
+        if 'icc' in self.options:
+            icc = self.deps['icc']
+            paths.extend(icc.BINDIR)
+            ld_paths.extend(icc.LDLIBDIR)
+        if 'mkl' in self.options:
+            mkl = self.deps['mkl']
+            ld_paths.extend(mkl.LDLIBDIR)
+
+        paths.extend(env.get('PATH','').split(':'))
+        ld_paths.extend(env.get('LD_LIBRARY_PATH','').split(':'))
+        env['PATH']             = ':'.join(paths)
+        env['LD_LIBRARY_PATH']  = ':'.join(ld_paths)
 
         env['PETSC_DIR']        = os.path.join(self.workDir, 'src')
         env['PETSC_ARCH']       = self.arch
 
         return env
+    # }}}
+
+    # {{{ _subst_vars
+    def _subst_vars(self, lst_or_dict, vars):
+        if 'icc' in self.options:
+            icc = self.deps['icc']
+            vars['ICC_BIN_DIR'] = icc.BINDIR
+            vars['ICC_LIB_DIR'] = icc.LIBDIR
+        if 'mkl' in self.options:
+            mkl = self.deps['mkl']
+            vars['MKL_INC_DIR'] = mkl.INCDIR
+            vars['MKL_LIB_DIR'] = mkl.LIBDIR
+            vars['MKL_LIBS']    = ','.join(mkl.basic_libs())
+
+            libs = list(mkl.scalapack_libs())
+            libs.extend(icc.ifcore_libs())
+            vars['MKL_SCALAPACK_LIBS'] = ','.join(libs)
+
+        return super(Petsc, self)._subst_vars(lst_or_dict, vars)
+    # }}}
 
 # }}}
 
