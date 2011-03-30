@@ -17,16 +17,11 @@ class GNUPackage(Package):
 
         super(GNUPackage, self).__init__(*args, **kwargs)
 
-    def _commonEnv(self, tgtDir):
-        env = dict(os.environ, **self.env)
-        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
-        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
-        return self._subst_vars(env, tgtDir)
-
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
+        vars = {'TGTDIR': tgtDir}
 
-        env = self._commonEnv(tgtDir)
+        env = self._commonEnv(vars)
 
         # autoconf
         if not os.path.exists(os.path.join(srcDir, 'configure')) and self.autoconf:
@@ -38,7 +33,7 @@ class GNUPackage(Package):
         # configure
         cmd = self.conf_cmd
         cmd.extend(self._opt_merge_lists('conf_args'))
-        cmd = self._subst_vars(cmd, tgtDir)
+        cmd = self._subst_vars(cmd, vars)
 
         print cmd
         ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
@@ -52,9 +47,10 @@ class GNUPackage(Package):
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
+        vars = {'TGTDIR': tgtDir}
         cmd = self.make_install_cmd
 
-        env = self._commonEnv(tgtDir)
+        env = self._commonEnv(vars)
 
         print cmd
         ret = subprocess.call(cmd, cwd=srcDir, env=env)
@@ -92,24 +88,19 @@ class CMakePackage(Package):
 
         super(CMakePackage, self).__init__(*args, **kwargs)
 
-    def _commonEnv(self, tgtDir):
-        env = dict(os.environ, **self.env)
-        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
-        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
-        return self._subst_vars(env, tgtDir)
-
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
         bldDir = os.path.join(self.workDir, 'build')
+        vars = {'TGTDIR': tgtDir}
         if os.path.exists(bldDir): shutil.rmtree(bldDir)
         os.makedirs(bldDir)
 
-        env = self._commonEnv(tgtDir)
+        env = self._commonEnv(vars)
 
         # configure
         cmd = self.conf_cmd
         cmd.extend(self._opt_merge_lists('conf_args'))
-        cmd = self._subst_vars(cmd, tgtDir)
+        cmd = self._subst_vars(cmd, vars)
         cmd.append('../src')
 
         print cmd
@@ -125,9 +116,10 @@ class CMakePackage(Package):
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
         bldDir = os.path.join(self.workDir, 'build')
+        vars = {'TGTDIR': tgtDir}
         cmd = self.make_install_cmd
 
-        env = self._commonEnv(tgtDir)
+        env = self._commonEnv(vars)
 
         print cmd
         ret = subprocess.call(cmd, cwd=bldDir, env=env)
@@ -166,24 +158,17 @@ class PythonPackage(Package):
 
         super(PythonPackage, self).__init__(*args, **kwargs)
 
-    def _commonEnv(self, tgtDir):
-        env = dict(os.environ, **self.env)
-        #env['PYTHONHOME'] = tgtDir
-        #env['PYTHONDONTWRITEBYTECODE'] = '1'
-        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
-        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
-        return self._subst_vars(env, tgtDir)
-
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
+        vars = {'TGTDIR': tgtDir}
 
-        env = self._commonEnv(tgtDir)
+        env = self._commonEnv(vars)
 
         # build
         cmd = self.build_cmd
         cmd.extend(self._opt_merge_lists('build_args'))
         cmd.append(self.build_verb)
-        cmd = self._subst_vars(cmd, tgtDir)
+        cmd = self._subst_vars(cmd, vars)
 
         print cmd
         ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
@@ -192,14 +177,15 @@ class PythonPackage(Package):
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
+        vars = {'TGTDIR': tgtDir}
 
-        env = self._commonEnv(tgtDir)
+        env = self._commonEnv(vars)
 
         # install
         cmd = self.install_cmd
         cmd.extend(self._opt_merge_lists('install_args'))
         cmd.append(self.install_verb)
-        cmd = self._subst_vars(cmd, tgtDir)
+        cmd = self._subst_vars(cmd, vars)
 
         print cmd
         ret = subprocess.call(cmd, True, cwd=srcDir, env=env)

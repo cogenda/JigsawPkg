@@ -185,8 +185,9 @@ class QScintilla(GNUPackage):
 
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src', 'Qt4')
+        vars = {'TGTDIR': tgtDir}
 
-        env = self._commonEnv(tgtDir)
+        env = self._commonEnv(vars)
 
         def _fix_pro(name, val):
             subTxtFile(os.path.join(srcDir,'qscintilla.pro'),
@@ -210,7 +211,8 @@ class QScintilla(GNUPackage):
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src', 'Qt4')
-        env = self._commonEnv(tgtDir)
+        vars = {'TGTDIR': tgtDir}
+        env = self._commonEnv(vars)
 
         cmd = self.make_install_cmd
 
@@ -274,4 +276,103 @@ class Scipy(PythonPackage):
     env = {'CPPFLAGS':  '-I/usr/include/atlas',
            'LDFLAGS':   '-L/usr/lib64/atlas'}
 # }}}
+
+ICC_DIR = '/opt/intel/Compiler/11.1/038'
+ICC_BIN_DIR = os.path.join(ICC_DIR, 'bin', 'intel64')
+ICC_LIB_DIR = os.path.join(ICC_DIR, 'lib', 'intel64')
+MKL_DIR = '/opt/intel/mkl/10.2.0.013'
+MKL_INC_DIR = os.path.join(MKL_DIR, 'include')
+MKL_LIB_DIR = os.path.join(MKL_DIR, 'lib', 'em64t')
+
+MKL_LIB_PREFIX = 'libmkl_'
+LIB_EXT = '.a'
+MKL_LIB_SUFFIX = '_lp64'
+
+
+# {{{ Petsc
+class Petsc(GNUPackage):
+    name = 'petsc'
+    version = '3.1-p8'
+    src_url = '/home/public/software/petsc/petsc-lite-3.1-p8.tar.gz'
+    conf_cmd  = ['python', 'configure']
+    conf_args_common = [
+                '--with-mpi-dir=/usr',
+                '--download-parmetis=1',
+                '--download-mumps=1',
+                '--download-superlu=1',
+                '--download-superlu_dist=1',
+                '--download-hypre=1',
+                '--with-debugging=0',
+                '--with-shared=0',
+                '--with-x=0',
+                '--with-pic=1']
+
+    # icc
+    conf_args_icc_append = ['--with-vendor-compilers=intel']
+
+    # default
+    conf_args_default_append = [
+                '--download-f-blas-lapack=1',
+                '--download-blacs=1',
+                '--download-scalapack=1',
+                ]
+    # MKL
+    MKL_LIBS= [ '%s/%s%s%s%s' % (MKL_LIB_DIR, MKL_LIB_PREFIX, lib, MKL_LIB_SUFFIX, LIB_EXT)
+                    for lib in ['intel', 'blas95', 'lapack95', 'blacs'] ]
+    MKL_LIBS.extend( ['%s/%s%s%s' % (MKL_LIB_DIR, MKL_LIB_PREFIX, lib, LIB_EXT)
+                    for lib in ['core', 'sequential'] ] )
+
+    MKL_SCALAPACK_LIBS = [
+                '%s/%s%s%s%s' % (MKL_LIB_DIR, MKL_LIB_PREFIX, lib, MKL_LIB_SUFFIX, LIB_EXT)
+                    for lib in ['scalapack'] ]
+    MKL_SCALAPACK_LIBS.append( '%s/libifcoremt%s' % ( ICC_LIB_DIR, LIB_EXT ) )
+
+    conf_args_mkl_append = [
+                '--with-blacs-include=%s'       % MKL_INC_DIR,
+                '--with-blas-include=%s'        % MKL_INC_DIR,
+                '--with-scalapack-include=%s'   % MKL_INC_DIR
+                ]
+    conf_args_mkl_append.extend( [
+                '--with-blacs-lib=[%s]'           % ','.join(MKL_LIBS),
+                '--with-blas-lapack-lib=[%s]'     % ','.join(MKL_LIBS),
+                '--with-scalapack-lib=[%s]'       % ','.join(MKL_SCALAPACK_LIBS),
+                ] )
+
+    prereqs_src = ['python']
+    dest_path_fixes = ['conf/*']
+
+    def __init__(self, *args, **kwargs):
+        if not kwargs.has_key('options'):
+            kwargs['options'] = ['default']
+
+        options = kwargs['options']
+        if 'icc' in options:
+            if 'mkl' in options:
+                self.arch = 'linux-icc'
+            else:
+                self.arch = 'linux-icc-nomkl'
+        else:
+            self.arch = 'linux-gcc'
+        
+        self.conf_args = list(self.conf_args_common)
+        self.conf_args.extend([
+            '--prefix=%s/petsc/%s'   %  ('${TGTDIR}', self.arch)
+            ])
+
+        super(Petsc, self).__init__(*args, **kwargs)
+
+    def _commonEnv(self, vars):
+        env = super(Petsc, self)._commonEnv(vars)
+
+        env['PATH']             = '%s:%s' % (ICC_BIN_DIR, env.get('PATH',''))
+        env['LD_LIBRARY_PATH']  = '%s:%s' % (':'.join([ICC_LIB_DIR, MKL_LIB_DIR]),
+                                             env.get('LD_LIBRARY_PATH',''))
+
+        env['PETSC_DIR']        = os.path.join(self.workDir, 'src')
+        env['PETSC_ARCH']       = self.arch
+
+        return env
+
+# }}}
+
 

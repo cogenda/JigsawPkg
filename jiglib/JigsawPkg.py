@@ -125,8 +125,6 @@ class Repository(object):
             writeFile(package.workDir, 'finished', '1') # mark it as finished
         
         # install, diff, and add to repo
-        print worlds
-        print package.features
         for i,obj in enumerate(package.features):
             if not self.getObjPath(obj, sig=package.sig())==None:
                 continue # this feature has been installed
@@ -209,7 +207,6 @@ class World(object):
 
     def unmake(self):
         for f in self.fileList:
-            if f.endswith('python'): print '----', f
             os.unlink(f)
         self.fileList=[]
 
@@ -402,10 +399,11 @@ class Package(object):
         print 'installing package %s v%s to world %s' % (obj, self.version, wldDir)
         return self.installWorld(wldDir, objDir, obj)
 
-    def _subst_vars(self, lst_or_dict, tgtDir):
+    def _subst_vars(self, lst_or_dict, vars):
         def _var(match):
             name=match.group(1)
-            if name=='TGTDIR':      return tgtDir
+            if vars.has_key(name):  return vars[name]
+            if name=='SRCDIR':      return os.path.join(self.workDir, 'src')
 
         if isinstance(lst_or_dict, list):
             res = []
@@ -417,6 +415,16 @@ class Package(object):
             for k,v in lst_or_dict.iteritems():
                 res[k] = re.sub('\$\{([a-zA-Z_]+)\}', _var, v)
             return res
+
+    def _commonEnv(self, vars):
+        env = dict(os.environ, **self.env)
+
+        tgtDir = vars.get('TGTDIR')
+        env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
+        env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
+        return self._subst_vars(env, vars)
+
+
 # }}}
 
 
