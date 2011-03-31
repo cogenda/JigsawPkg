@@ -10,6 +10,8 @@ class CGNSLib(GNUPackage):
     version = '2.5-5'
     src_url = '/home/public/software/science/cgnslib_2.5-5.tar.gz'
     conf_args = ['--prefix=${TGTDIR}', '--enable-64bit', '--enable-lfs']
+
+    prereqs_src = ['sys:zlib-devel']
 # }}}
 
 # {{{ Qt4
@@ -290,6 +292,8 @@ class IntelCompiler(SystemPackage):
         self.LDLIBDIR = None
         self.LIBEXT = '.a'
 
+        self.found = os.path.exists(envsh)
+
         tmpdir = tempfile.mkdtemp()
         str ='''#!/bin/sh
 source %s %s
@@ -313,6 +317,9 @@ echo $LD_LIBRARY_PATH
                 if not dir in oldlst:
                     self.__dict__[var] = dir
                     break
+
+    def isAvailable(self):
+        return self.found
 
     def _search_lib(self, dirs, f):
         for dir in dirs:
@@ -344,6 +351,8 @@ class MKL(SystemPackage):
         self.LIBSUFFIX = '_lp64'
         self.LIBEXT = '.a'
 
+        self.found = os.path.exists(envsh)
+
         tmpdir = tempfile.mkdtemp()
         str ='''#!/bin/sh
 source %s %s
@@ -367,6 +376,9 @@ echo $LD_LIBRARY_PATH
                 if not dir in oldlst:
                     self.__dict__[var] = dir
                     break
+
+    def isAvailable(self):
+        return self.found
 
     def _search_lib(self, dirs, f):
         for dir in dirs:

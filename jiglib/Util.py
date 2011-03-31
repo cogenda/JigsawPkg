@@ -1,4 +1,4 @@
-__all__=['writeFile', 'copyX', 'subTxtFile']
+__all__=['writeFile', 'copyX', 'subTxtFile', 'version2int']
 
 import os, os.path, shutil, tempfile, glob
 import re, string
@@ -42,5 +42,16 @@ def subTxtFile(path, pattern, replace, mode='plain'):
         else:
             fout.write(string.replace(l, pattern, replace))
     fout.close()
+
+def version2int(ver):
+    parts = re.split(r'\.|-p?', ver)
+    v = 0
+    for i in xrange(4):
+        v *= 100
+        if i<len(parts):
+            try: v += int(parts[i])
+            except: pass
+    return v
+
 # }}}
 

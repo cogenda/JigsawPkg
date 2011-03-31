@@ -1,6 +1,6 @@
-__all__ = ['Repository', 'World', 'Collection']
+__all__ = ['Repository', 'World', 'Collection', 'BaseSystem']
 
-import os, os.path, shutil, tempfile, glob
+import os, os.path, shutil, tempfile, glob, subprocess
 import re, string
 from Packages import Package, SystemPackage
 from Util import *
@@ -181,10 +181,70 @@ class World(object):
 
 # }}}
 
+# {{{ BaseSystem
+class BaseSystem(object):
+    def __init__(self):
+        relf = os.path.join('/etc', 'redhat-release')
+        if not os.path.exists(relf):
+            raise Exception('Only Redhat-based Linux is supported.')
+
+        line = open(relf).readlines()[0]
+        match = re.match(r'(?P<vendor>.*?)\s+release\s+(?P<version>[0-9\.]+)\s.*', line)
+        if match==None:
+            raise Exception('Version string not recognized')
+        vendor, version = match.group('vendor'), match.group('version')
+
+        if vendor=='CentOS':
+            if version2int(version)<5000000:
+                raise Exception('Need at least CentOS 5.0')
+            print 'Found %s %s' % (vendor, version)
+        else:
+            raise Exception('We do not know %s %s' % (vendor, version))
+
+        self.vendor, self.version = vendor, version
+
+        import platform
+        self.arch = platform.machine()
+        if not self.arch=='x86_64':
+            raise Exception('Only x86_64 system is supported')
+
+        self.rpms = {}
+        cmd = ['yum', 'list', 'installed']
+        output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()[0]
+        lines = output.split('\n')
+        for line in lines[2:]:
+            try:
+                name, ver, _ = line.split()
+                self.rpms[name] = ver
+            except:
+                print 'err...whats this?', line
+
+    def hasPackage(self, package):
+        if not isinstance(package, SystemPackage):
+            raise TypeError
+
+        try:
+            return package.isAvailable()
+        except NotImplementedError:
+            # in base system
+            name = '%s.%s' % (package.name, self.arch)
+            if not self.rpms.has_key(name):
+                return False
+
+            ver = self.rpms[name]
+            if version2int(ver) < version2int(package.version):
+                return False
+
+            package.version = ver   # the actual verson found
+            return True
+
+# }}}
+
 # {{{ Collection
 class Collection(object):
-    def __init__(self, repo):
+    def __init__(self, repo, baseSys):
         self.repo = repo
+        self.baseSys = baseSys
 
     def packages(self):
         lst = []
@@ -199,11 +259,31 @@ class Collection(object):
         for k,v in self.__class__.__dict__.iteritems():
             if isinstance(v, SystemPackage):
                 lst.append(v)
+        for p in self.packages():
+            for _,dep in p.deps.iteritems():
+                if isinstance(dep, SystemPackage):
+                    lst.append(dep)
         return lst
+
+
+    def checkSysDeps(self):
+        missList=[]
+        for p in self.systemPkgs():
+            if not self.baseSys.hasPackage(p):
+                missList.append(p)
+        if len(missList)>0:
+            print 'The following system packages are required'
+            for p in missList:
+                print p.name, p.version
+            return False
+        return True
 
     def install(self, wldDir):
         mode = 'redist'
         world = World(self.repo, wldDir)
+
+        if not self.checkSysDeps(): return
+
         for p in self.systemPkgs():
             p._installWorld(wldDir)
         for p in self.packages():
@@ -214,8 +294,9 @@ class Collection(object):
 
     def build(self):
         mode = 'src'
-        for p in self.systemPkgs():
-            pass
+        
+        if not self.checkSysDeps(): return
+
         for p in self.packages():
             self.repo.addPackage(p)
 # }}}

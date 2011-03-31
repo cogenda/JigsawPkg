@@ -88,8 +88,18 @@ class Package(object):
             for f in dep.features:
                 avail[f] = True
         for req in self.prereqs:
-            if not avail.has_key(req):
-                raise Exception('Missing Pre-requisite Argument: %s' % req)
+            if req.startswith('sys:'):
+                # base system dependencies
+                parts = req.split(':')
+                name = parts[1]
+                if len(parts)>2:
+                    ver = parts[2]
+                else:
+                    ver = '0.0.0'
+                self.deps[req] = SystemPackage(name=name, version=ver)
+            else:
+                if not avail.has_key(req):
+                    raise Exception('Missing Pre-requisite Argument: %s' % req)
 
     def sig(self):
         lst = [self.name, self.version]
@@ -226,6 +236,9 @@ class SystemPackage(object):
             self.__dict__[name] = val
 
     def __init__(self, *args, **kwargs):
+        if kwargs.has_key('name'): self.name=kwargs['name']
+        if kwargs.has_key('version'): self.version=kwargs['version']
+
         self._setDefault('name', 'Unknown')
         self._setDefault('version', '1.0')
         self._setDefault('features', [])
@@ -233,6 +246,9 @@ class SystemPackage(object):
     def sig(self):
         lst = [self.name, self.version]
         return sha1(','.join(lst)).hexdigest()[0:7]
+
+    def isAvailable(self):
+        raise NotImplementedError
 
     def _installWorld(self, wldDir):
         pass
