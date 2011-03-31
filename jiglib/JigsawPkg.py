@@ -1,4 +1,4 @@
-__all__ = ['Repository', 'World']
+__all__ = ['Repository', 'World', 'Collection']
 
 import os, os.path, shutil, tempfile, glob
 import re, string
@@ -179,6 +179,45 @@ class World(object):
         if os.path.exists(self.rootDir):
             shutil.rmtree(self.rootDir)
 
+# }}}
+
+# {{{ Collection
+class Collection(object):
+    def __init__(self, repo):
+        self.repo = repo
+
+    def packages(self):
+        lst = []
+        for k,v in self.__class__.__dict__.iteritems():
+            if k.startswith('_'): continue
+            if isinstance(v, Package):
+                lst.append(v)
+        return lst
+
+    def systemPkgs(self):
+        lst = []
+        for k,v in self.__class__.__dict__.iteritems():
+            if isinstance(v, SystemPackage):
+                lst.append(v)
+        return lst
+
+    def install(self, wldDir):
+        mode = 'redist'
+        world = World(self.repo, wldDir)
+        for p in self.systemPkgs():
+            p._installWorld(wldDir)
+        for p in self.packages():
+            for obj in p.features:
+                oDir = self.repo.getObjPath(obj, sig=p.sig())
+                if oDir==None: raise Exception
+                p._installWorld(wldDir, oDir, obj)
+
+    def build(self):
+        mode = 'src'
+        for p in self.systemPkgs():
+            pass
+        for p in self.packages():
+            self.repo.addPackage(p)
 # }}}
 
 

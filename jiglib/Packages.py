@@ -234,7 +234,7 @@ class SystemPackage(object):
         lst = [self.name, self.version]
         return sha1(','.join(lst)).hexdigest()[0:7]
 
-    def _installWorld(self, wldDir, feature):
+    def _installWorld(self, wldDir):
         pass
 
 # }}}
@@ -367,7 +367,7 @@ class CMakePackage(Package):
                 subTxtFile(path, tgtDir, 'JIG_WORLD_DIR')
 
     def installWorld(self, wldDir, objDir, obj):
-        fileList = super(GNUPackage, self).installWorld(wldDir, objDir, obj)
+        fileList = super(CMakePackage, self).installWorld(wldDir, objDir, obj)
 
         # fix pkgconfig
         for fglob in self.dest_path_fixes:
