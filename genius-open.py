@@ -1,4 +1,5 @@
 from jiglib.CommonPkgs import *
+import os
 
 class Genius(WafPackage):
     name = 'Genius'
@@ -23,6 +24,11 @@ class Genius(WafPackage):
             ]
 
     def installWorld(self, wldDir, objDir, obj):
+        for d in ['bin', 'lib', 'examples']:
+            dir = os.path.join(wldDir, 'genius', d)
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+
         lst = super(Genius, self).installWorld(wldDir, objDir, obj)
 
         script='''#!/bin/sh
@@ -57,11 +63,22 @@ class CogendaTCAD(Collection):
 if __name__=='__main__':
     base = BaseSystem()
 
-    repo = Repository(
-            '/usr/local/cogenda/repo',          # Repository dir
-            tmpDir='/home/src/cogenda-open'     # temp dir for building
-                     )
+    # Repository dir
+    repoDir = os.environ.get('JIG_REPO_DIR', os.path.join(os.getcwd(), 'repo'))
+
+    # temp dir for building
+    bldDir  = os.environ.get('JIG_BLD_DIR',  '/tmp/jigsaw')
+
+    # Install to this dir
+    instDir = os.environ.get('JIG_INSTALL_DIR', os.path.expanduser('~/cogenda'))
+
+    for d in [repoDir, bldDir, instDir]:
+        if not os.path.exists(d):
+            os.makedirs(d)
+
+    repo = Repository(repoDir, tmpDir=bldDir)
     tcad = CogendaTCAD(repo, base)
-    tcad.build()                                # Build all packages, add to repo.
-    tcad.install('/home/hash/cogenda')          # Install to this dir
+    tcad.build()
+
+    tcad.install(instDir)
 
