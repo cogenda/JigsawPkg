@@ -1,12 +1,14 @@
 __all__ = ['Package', 'SystemPackage', 
-           'GNUPackage', 'CMakePackage', 'PythonPackage', 'mode']
+           'GNUPackage', 'CMakePackage', 'PythonPackage', 'WafPackage',
+           'mode']
 
 import os, os.path, shutil, tempfile, glob
 import tarfile, zipfile, subprocess, re, string
+import urlparse, urllib
 try:
     from hashlib import sha1
 except:
-    import sha as sha1
+    from sha import new as sha1
 from Util import *
 
 mode = 'src'
@@ -25,6 +27,7 @@ class Package(object):
         self._setDefault('prereqs_src', [])
         self._setDefault('src_url', None)
         self._setDefault('optionList', []) # possible options
+        self._setDefault('env', {})
 
         self.deps = {}
 
@@ -79,6 +82,30 @@ class Package(object):
         for lst in deletes:
             for o in lst:
                 try: res.remove(o)
+                except: pass
+        return res
+
+    def _opt_merge_dict(self, prefix):
+        maps = [self.__dict__,self.__class__.__dict__]
+        appends = []
+        deletes = []
+        for map in maps:
+            if map.has_key(prefix):
+                appends.append(map[prefix])
+        for opt in self.options:
+            for k,l in [ ('%s_%s_append' % (prefix, opt), appends),
+                         ('%s_%s_delete' % (prefix, opt), deletes) ]:
+                for map in maps:
+                    if map.has_key(k):
+                        l.append(map[k])
+    
+        res = {}
+        for dct in appends:
+            for k,v in dct.iteritems():
+                res[k]=v
+        for dct in deletes:
+            for k,v in dct.iteritems():
+                try: del res[k]
                 except: pass
         return res
 
@@ -147,20 +174,43 @@ class Package(object):
             return
 
         src_dir = os.path.join(self.workDir, 'src')
-        if os.path.exists(src_dir):
-            return
+        #if os.path.exists(src_dir):
+        #    return
 
         src_file, isarchive = None, False
-        if self.src_url.startswith('http'):
-            pass
-        elif self.src_url.startswith('ssh+git'):
-            cmd = ['git', 'clone', self.src_url]
-            ret = subprocess.call(cmd, cwd=self.workDir)
-        else:
-            if not os.path.exists(self.src_url):
-                raise Exception
-            src_file = self.src_url
-            isarchive = True
+        for url in self.src_url:
+            print 'Trying to download from %s.' % url
+            if url.startswith('http'):
+                try:
+                    fname = os.path.basename(urlparse.urlsplit(url)[2])
+                    src_file = os.path.join(self.workDir, fname)
+                    urllib.urlretrieve(url, src_file)
+                    isarchive = True
+                    break
+                except Exception,e:
+                    print 'Failed to download from %s.' % url
+                    print e
+            elif url.startswith('ssh+git'):
+                try:
+                    cmd = ['git', 'clone', url]
+                    ret = subprocess.call(cmd, cwd=self.workDir)
+                    if ret==0:
+                        src_file = ""
+                        break
+                except:
+                    print 'Failed to download from %s.' % url
+            else:
+                try:
+                    if not os.path.exists(url):
+                        raise Exception
+                    src_file = url
+                    isarchive = True
+                    break
+                except:
+                    print 'Failed to download from %s.' % url
+
+        if src_file==None:
+            raise Exception('Failed fetching package %s v%s' % (self.name, self.version))
 
         if isarchive:
             if tarfile.is_tarfile(src_file):
@@ -172,8 +222,12 @@ class Package(object):
 
         src_dir = os.path.join(self.workDir, 'src')
         if os.path.lexists(src_dir):
-            os.unlink(src_dir)
-        os.symlink(os.listdir(self.workDir)[0], src_dir)
+            shutil.rmtree(src_dir)
+        for entry in os.listdir(self.workDir):
+            epath = os.path.join(self.workDir, entry)
+            if os.path.isdir(epath):
+                shutil.move(epath, src_dir)
+                break
 
     def installWorld(self, wldDir, objDir, obj):
         if objDir==None:
@@ -201,24 +255,14 @@ class Package(object):
         return self.installWorld(wldDir, objDir, obj)
 
     def _subst_vars(self, lst_or_dict, vars):
-        def _var(match):
-            name=match.group(1)
-            if vars.has_key(name):  return vars[name]
-            if name=='SRCDIR':      return os.path.join(self.workDir, 'src')
-
-        if isinstance(lst_or_dict, list):
-            res = []
-            for o in lst_or_dict:
-                res.append(re.sub('\$\{([a-zA-Z_]+)\}', _var, o))
-            return res
-        elif isinstance(lst_or_dict, dict):
-            res = {}
-            for k,v in lst_or_dict.iteritems():
-                res[k] = re.sub('\$\{([a-zA-Z_]+)\}', _var, v)
-            return res
+        v = dict(**vars)
+        if not self.workDir==None:
+            v['SRCDIR'] = os.path.join(self.workDir, 'src')
+        return substVars(lst_or_dict, v)
 
     def _commonEnv(self, vars):
-        env = dict(os.environ, **self.env)
+        env = self._opt_merge_dict('env')
+        env = dict(os.environ, **env)
 
         tgtDir = vars.get('TGTDIR')
         env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
@@ -445,3 +489,49 @@ class PythonPackage(Package):
 
 # }}}
 
+# {{{ class WafPackage
+class WafPackage(Package):
+    def __init__(self, *args, **kwargs):
+        self._setDefault('env', {})
+        self._setDefault('waf_cmd',   ['python', 'waf'])
+        self._setDefault('waf_args', [])
+        self._setDefault('build_verb', ['configure', 'build'])
+        self._setDefault('install_verb', ['install'])
+
+        super(WafPackage, self).__init__(*args, **kwargs)
+
+    def build(self, tgtDir):
+        srcDir = os.path.join(self.workDir, 'src')
+        vars = {'TGTDIR': tgtDir}
+
+        env = self._commonEnv(vars)
+
+        # build
+        cmd = self.waf_cmd
+        cmd.extend(self._opt_merge_lists('waf_args'))
+        cmd.extend(self.build_verb)
+        cmd = self._subst_vars(cmd, vars)
+
+        print cmd
+        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        if not ret==0:
+            raise Exception('Failed to execute %s' % str(cmd))
+
+    def install(self, tgtDir, obj):
+        srcDir = os.path.join(self.workDir, 'src')
+        vars = {'TGTDIR': tgtDir}
+
+        env = self._commonEnv(vars)
+
+        # install
+        cmd = self.waf_cmd
+        cmd.extend(self._opt_merge_lists('waf_args'))
+        cmd.extend(self.install_verb)
+        cmd = self._subst_vars(cmd, vars)
+
+        print cmd
+        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        if not ret==0:
+            raise Exception('Failed to execute %s' % str(cmd))
+
+# }}}

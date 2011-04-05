@@ -138,6 +138,12 @@ class World(object):
            install them.'''
 
         def _activate_package(package):
+            if isinstance(package, SystemPackage):
+                # system package
+                print package, package.name, package.version
+                return
+
+            # src package
             _, installed = self.packages[package.sig()]
             if installed: return
 
@@ -166,14 +172,26 @@ class World(object):
         for _,(package, installed) in self.packages.iteritems():
             _activate_package(package)
 
+
     def unmake(self):
         for f in self.fileList:
             os.unlink(f)
         self.fileList=[]
 
-        for path, dirs, files in os.walk(self.rootDir, topdown=False):
-            if len(dirs)==0 and len(files)==0:
+        # clean-up empty dirs
+        def _cleandir(path):
+            empty=True
+            for entry in os.listdir(path):
+                ent_path = os.path.join(path, entry)
+                if os.path.isdir(ent_path):
+                    empty = _cleandir(ent_path) and empty
+                else:
+                    empty = False
+            if empty:
                 os.rmdir(path)
+            return empty
+        _cleandir(self.rootDir)
+
 
     def destroy(self):
         if os.path.exists(self.rootDir):
@@ -291,6 +309,22 @@ class Collection(object):
                 oDir = self.repo.getObjPath(obj, sig=p.sig())
                 if oDir==None: raise Exception
                 p._installWorld(wldDir, oDir, obj)
+
+        # write setenv script
+        script='''#!/bin/sh
+export PATH=${TGTDIR}/bin:$PATH
+if [[ "x$LD_LIBRARY_PATH" == "x" ]]
+then
+    export LD_LIBRARY_PATH=${TGTDIR}/lib
+else
+    export LD_LIBRARY_PATH=${TGTDIR}/lib:$LD_LIBRARY_PATH
+fi
+'''
+        script = substVars(script, {'TGTDIR':wldDir})
+
+        writeFile(wldDir, 'bin/setenv.sh', script, mode=0755)
+
+
 
     def build(self):
         mode = 'src'

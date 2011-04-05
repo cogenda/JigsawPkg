@@ -1,6 +1,6 @@
-from jiglib.JigsawPkg import *
-from jiglib.Packages import *
-from jiglib.Util import *
+from JigsawPkg import *
+from Packages import *
+from Util import *
 
 import os, os.path, shutil, glob, subprocess, tempfile
 
@@ -8,10 +8,15 @@ import os, os.path, shutil, glob, subprocess, tempfile
 class CGNSLib(GNUPackage):
     name = 'cgnslib'
     version = '2.5-5'
-    src_url = '/home/public/software/science/cgnslib_2.5-5.tar.gz'
+    src_url = ['/home/public/software/science/cgnslib_2.5-5.tar.gz',
+               'http://downloads.sourceforge.net/project/cgns/cgnslib_2.5/Release%205/cgnslib_2.5-5.tar.gz'
+              ]
     conf_args = ['--prefix=${TGTDIR}', '--enable-64bit', '--enable-lfs']
 
     prereqs_src = ['sys:zlib-devel']
+
+    optionList = ['pic']
+    env_pic_append = {'CFLAGS': '-fPIC'}
 # }}}
 
 # {{{ Qt4
@@ -19,7 +24,9 @@ class Qt4(GNUPackage):
     name = 'Qt'
     featureList = ['Qt', 'Qt-redist']
     version = '4.7.2'
-    src_url = '/home/public/software/Qt/qt-everywhere-opensource-src-4.7.2.tar.gz'
+    src_url = ['/home/public/software/Qt/qt-everywhere-opensource-src-4.7.2.tar.gz',
+               'http://get.qt.nokia.com/qt/source/qt-everywhere-opensource-src-4.7.2.tar.gz'
+              ]
     conf_args = ['-opensource', '-confirm-license',
                  '-prefix',     '${TGTDIR}',
                  '-datadir',    '${TGTDIR}/share/qt4',
@@ -61,7 +68,10 @@ class Qt4(GNUPackage):
 class CMake(GNUPackage):
     name = 'cmake'
     version = '2.8.4'
-    src_url = '/home/public/software/utils/cmake-2.8.4.tar.gz'
+    src_url = ['/home/public/software/utils/cmake-2.8.4.tar.gz',
+               'http://distfiles.macports.org/cmake/cmake-2.8.4.tar.gz',
+               'http://www.cmake.org/files/v2.8/cmake-2.8.4.tar.gz',
+              ]
     conf_args = ['--prefix=${TGTDIR}']
 
 # }}}
@@ -70,7 +80,10 @@ class CMake(GNUPackage):
 class VTK(CMakePackage):
     name = 'vtk'
     version = '5.4.2'
-    src_url = '/home/public/software/science/vtk-5.4.2.tar.gz'
+    src_url = ['/home/public/software/science/vtk-5.4.2.tar.gz',
+               'http://distfiles.macports.org/vtk-devel/vtk-5.4.2.tar.gz',
+               'http://www.vtk.org/files/release/v5.4/vtk-5.4.2.tar.gz',
+              ]
     conf_args = [
                  '-DCMAKE_BUILD_TYPE:STRING=Release',
                  '-DCMAKE_INSTALL_PREFIX:PATH=${TGTDIR}',
@@ -93,17 +106,21 @@ class VTK(CMakePackage):
                  '-DVTK_WRAP_JAVA:BOOL=OFF',
                  '-DVTK_WRAP_PYTHON:BOOL=OFF',
                  '-DVTK_WRAP_TCL:BOOL=OFF',
-                 '-DVTK_USE_QVTK:BOOL=ON',
-                 '-DDESIRED_QT_VERSION:STRING=4',
-                 '-DQT_QMAKE_EXECUTABLE:FILEPATH=${TGTDIR}/bin/qmake',
                  '-DBUILD_SHARED_LIBS:BOOL=OFF',
                  '-DCMAKE_C_FLAGS:STRING=-O3 -DNDEBUG -fPIC',
                  '-DCMAKE_CXX_FLAGS:STRING=-O3 -DNDEBUG -fPIC'
                 ]
     conf_cmd = ['cmake']
-    prereqs = ['Qt-redist']
-    prereqs_src = ['Qt', 'cmake']
+    prereqs_src = ['cmake']
 
+    optionList = ['Qt']
+    prereqs_Qt_append = ['Qt-redist']
+    prereqs_src_Qt_append = ['Qt']
+    conf_args_Qt_append = [
+                 '-DVTK_USE_QVTK:BOOL=ON',
+                 '-DDESIRED_QT_VERSION:STRING=4',
+                 '-DQT_QMAKE_EXECUTABLE:FILEPATH=${TGTDIR}/bin/qmake',
+                ]
 # }}}
 
 # {{{ Python
@@ -111,7 +128,9 @@ class Python(GNUPackage):
     name = 'python'
     featureList = ['python']
     version = '2.7.1'
-    src_url = '/home/public/software/python/Python-2.7.1.tar.bz2'
+    src_url = ['/home/public/software/python/Python-2.7.1.tar.bz2',
+               'http://www.python.org/ftp/python/2.7.1/Python-2.7.1.tar.bz2'
+              ]
     conf_args = ['--prefix=${TGTDIR}']
     optionList = ['shared']
     conf_args_shared_append = ['--enable-shared']
@@ -139,7 +158,9 @@ export PYTHONHOME=%s
 class SIP(GNUPackage):
     name = 'python-sip'
     version = '4.12.1'
-    src_url = '/home/public/software/python/sip-4.12.1.tar.gz'
+    src_url = ['/home/public/software/python/sip-4.12.1.tar.gz',
+               'http://www.riverbankcomputing.co.uk/static/Downloads/sip4/sip-4.12.1.tar.gz',
+              ]
     env = {'PYTHONDONTWRITEBYTECODE':'1'}
     autoconf = None
     conf_cmd  = ['python', 'configure.py']
@@ -156,7 +177,9 @@ class SIP(GNUPackage):
 class Qwt(GNUPackage):
     name = 'Qwt'
     version = '5.2.1'
-    src_url = '/home/public/software/Qt/qwt-5.2.1.tar.bz2'
+    src_url = ['/home/public/software/Qt/qwt-5.2.1.tar.bz2',
+               '',
+            ]
     prereqs     = ['Qt-redist']
     prereqs_src = ['Qt']
     autoconf  = None
@@ -182,7 +205,9 @@ class Qwt(GNUPackage):
 class QScintilla(GNUPackage):
     name = 'QScintilla'
     version = '2.4-dev'
-    src_url = 'ssh+git://git@hydrogen/QScintilla.git'
+    src_url = ['ssh+git://git@hydrogen/QScintilla.git',
+               'http://www.riverbankcomputing.co.uk/static/Downloads/QScintilla2/QScintilla-gpl-2.5.tar.gz',
+              ]
     prereqs     = ['Qt-redist']
     prereqs_src = ['Qt']
 
@@ -230,7 +255,9 @@ class QScintilla(GNUPackage):
 class PyQt(GNUPackage):
     name = 'python-pyqt'
     version = '4.8.3'
-    src_url = '/home/public/software/python/PyQt-x11-gpl-4.8.3.tar.gz'
+    src_url = ['/home/public/software/python/PyQt-x11-gpl-4.8.3.tar.gz',
+               'http://www.riverbankcomputing.co.uk/static/Downloads/PyQt4/PyQt-x11-gpl-4.8.3.tar.gz',
+              ]
     autoconf = None
     env = {'PYTHONDONTWRITEBYTECODE':'1'}
     conf_cmd  = ['python', 'configure.py']
@@ -247,7 +274,9 @@ class PyQt(GNUPackage):
 class numscons(PythonPackage):
     name = 'python-numscons'
     version = '0.12.0'
-    src_url = '/home/public/software/python/cournape-numscons-v0.12.0-0-gebb8b8a.tar.gz'
+    src_url = ['/home/public/software/python/cournape-numscons-v0.12.0-0-gebb8b8a.tar.gz',
+               'https://github.com/cournape/numscons/tarball/v0.12.0',
+              ]
     prereqs = ['python']
 
 # }}}
@@ -256,7 +285,9 @@ class numscons(PythonPackage):
 class Numpy(PythonPackage):
     name = 'python-numpy'
     version = '1.5.1'
-    src_url = '/home/public/software/python/numpy-1.5.1.tar.gz'
+    src_url = ['/home/public/software/python/numpy-1.5.1.tar.gz',
+                'http://sourceforge.net/projects/numpy/files/NumPy/1.5.1/numpy-1.5.1.tar.gz'
+              ]
     prereqs = ['python']
     prereqs_src = ['python-numscons']
     build_args  = ['--jobs=4']
@@ -270,7 +301,9 @@ class Numpy(PythonPackage):
 class Scipy(PythonPackage):
     name = 'python-scipy'
     version = '0.9.0'
-    src_url = '/home/public/software/python/scipy-0.9.0.tar.gz'
+    src_url = ['/home/public/software/python/scipy-0.9.0.tar.gz',
+               'http://sourceforge.net/projects/scipy/files/scipy/0.9.0/scipy-0.9.0.tar.gz'
+              ]
     prereqs = ['python', 'python-numpy']
     prereqs_src = ['python-numscons']
     build_args  = ['--jobs=4']
@@ -409,29 +442,41 @@ echo $LD_LIBRARY_PATH
 class Petsc(GNUPackage):
     name = 'petsc'
     version = '3.1-p8'
-    src_url = '/home/public/software/petsc/petsc-lite-3.1-p8.tar.gz'
+    src_url = ['/home/public/software/petsc/petsc-lite-3.1-p8.tar.gz',
+               'http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-lite-3.1-p8.tar.gz'
+              ]
     conf_cmd  = ['python', 'configure']
     conf_args_common = [
-                '--with-mpi-dir=/usr',
-                '--download-parmetis=1',
-                '--download-mumps=1',
-                '--download-superlu=1',
-                '--download-superlu_dist=1',
-                '--download-hypre=1',
                 '--with-debugging=0',
                 '--with-shared=0',
                 '--with-x=0',
-                '--with-pic=1']
+                '--with-pic=1'
+                ]
+    conf_args_solver_append = [
+                '--download-superlu=1',
+                '--download-hypre=1',
+                ]
+    conf_args_solver_mpi_append = [
+                '--download-mumps=1',
+                '--download-parmetis=1',
+                '--download-superlu_dist=1',
+                ]
 
     # icc
     conf_args_icc_append = ['--with-vendor-compilers=intel']
+    prereqs_src_icc_append = ['icc']
 
-    # default
-    conf_args_default_append = [
+    # {{{ Linear Algebra libraries
+
+    # download and compile linear algebra lib
+    conf_args_netlib_nompi_append = ['--download-f-blas-lapack=1']
+    conf_args_netlib_append = [
                 '--download-f-blas-lapack=1',
                 '--download-blacs=1',
                 '--download-scalapack=1',
                 ]
+    # TODO epel Atlas library
+
     # MKL
     conf_args_mkl_append = [
                 '--with-blacs-include=${MKL_INC_DIR}',
@@ -441,19 +486,46 @@ class Petsc(GNUPackage):
                 '--with-blas-lapack-lib=[${MKL_LIBS}]',
                 '--with-scalapack-lib=[${MKL_SCALAPACK_LIBS}]',
                 ]
-
-    prereqs_src = ['python']
-    prereqs_src_icc_append = ['icc']
     prereqs_src_mkl_append = ['mkl']
+
+    # }}}
+
+    # {{{ MPI library
+    # no MPI support
+    conf_args_nompi_append = ['--with-mpi=0',]
+
+    # download and compile MPICH2
+    conf_args_mpich2_append =  ['--download-mpich=1',
+                                '--download-mpich-device=ch3:nemesis']
+
+    # epel MPICH2
+    conf_args_mpich2_epel_append   = ['--with-mpi-dir=/usr']
+    prereqs_src_mpich2_epel_append = ['sys:epel-release', 'sys:mpich2-devel']
+
+    # }}}
 
     dest_path_fixes = ['conf/*']
 
     # {{{ __init__()
     def __init__(self, *args, **kwargs):
-        if not kwargs.has_key('options'):
-            kwargs['options'] = ['default']
+        options = kwargs.get('options', ['solver'])
+        if not ( 'mpich2_epel'  in options or
+                 'mpich2'       in options or
+                 'nompi'        in options ):
+            options.append('mpich2') # default to download mpich2
 
-        options = kwargs['options']
+        if not ( 'mkl'    in options or
+                 'netlib' in options ):
+            if 'nompi' in  options:
+                options.append('netlib_nompi') # default linear algebra lib w/o mpi
+            else:
+                options.append('netlib') # default linear algebra lib
+
+        if not 'nompi' in options:
+            options.append('solver_mpi')
+
+        kwargs['options'] = options
+
         if 'icc' in options:
             if 'mkl' in options:
                 self.arch = 'linux-icc'
@@ -462,10 +534,9 @@ class Petsc(GNUPackage):
         else:
             self.arch = 'linux-gcc'
         
-        self.conf_args = list(self.conf_args_common)
-        self.conf_args.extend([
-            '--prefix=%s/petsc/%s'   %  ('${TGTDIR}', self.arch)
-            ])
+        self.conf_args = self.conf_args_common
+        self.conf_args.extend(
+            [ '--prefix=%s/petsc/%s'   %  ('${TGTDIR}', self.arch) ])
 
         super(Petsc, self).__init__(*args, **kwargs)
     # }}}

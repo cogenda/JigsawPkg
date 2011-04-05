@@ -1,4 +1,4 @@
-__all__=['writeFile', 'copyX', 'subTxtFile', 'version2int']
+__all__=['writeFile', 'copyX', 'subTxtFile', 'substVars', 'version2int']
 
 import sys, os, os.path, shutil, tempfile, glob
 import re, string
@@ -53,6 +53,25 @@ def version2int(ver):
             except: pass
     return v
 
+
+def substVars(lst_or_dict, vars):
+    def _var(match):
+        name=match.group(1)
+        if vars.has_key(name):  return vars[name]
+
+    pattern = '\$\{([a-zA-Z_]+)\}'
+    if isinstance(lst_or_dict, str):
+        return re.sub(pattern, _var, lst_or_dict)
+    if isinstance(lst_or_dict, list):
+        res = []
+        for o in lst_or_dict:
+            res.append(re.sub(pattern, _var, o))
+        return res
+    elif isinstance(lst_or_dict, dict):
+        res = {}
+        for k,v in lst_or_dict.iteritems():
+            res[k] = re.sub(pattern, _var, v)
+        return res
 
 
 # Creates os.path.relpath for Python 2.4
