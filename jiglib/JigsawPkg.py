@@ -212,7 +212,7 @@ class BaseSystem(object):
             raise Exception('Version string not recognized')
         vendor, version = match.group('vendor'), match.group('version')
 
-        if vendor=='CentOS':
+        if vendor=='CentOS' or vendor.startswith('Red Hat'):
             if version2int(version)<5000000:
                 raise Exception('Need at least CentOS 5.0')
             print 'Found %s %s' % (vendor, version)
