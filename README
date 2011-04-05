@@ -1,0 +1,40 @@
+JigsawPkg is a Package Management System.  It builds software "packages" from
+source, stores them in a "repository", and install them to "world".
+
+One can build many variants from a source package, each identified by some
+options, and the list of dependent package variants. JigsawPkg manages the 
+dependency between these package variants in the repository. 
+One then assemble the pieces together, to form a world of software packages,
+the variants that are compatible with each other. This is important when
+one needs to test and benchmark many versions and compile options.
+
+We write it to replace the old continuous building scripts we used internally
+in the company. It took inspiration from other package systems, especially 
+NixPkgs (http://nixos.org/) and Macports (http://www.macports.org/).
+
+JigsawPkg is still considered experimental at the moment. We created a
+collection for building the open-source version of Genius Device Simulator.
+It works on a vanilla RHEL Release 5, or the CentOS equivalents. Of course,
+GCC compilers (gcc, g++ and gfortran) must be installed.
+
+To use it, please take the following steps:
+ 1. Unpack the tarball, and enter the directory.
+ 2. Run the script:
+        python genius-open.py
+    This will install Genius to $HOME/cogenda/genius, and the repository 
+    is located in the current directory.
+
+After the installation is completed, one can run genius by
+ 1. Optionally, run 
+        source $HOME/cogenda/bin/setenv.sh
+ 2. Enter the directory $HOME/cogenda/genius/examples/PN_Diode/2D
+ 3. Run
+        $HOME/cogenda/genius/bin/genius -i pn2d.inp
+
+
+To use repo and install locations other than the defaults, one can set
+the following environment variables before running the script.
+ JIG_REPO_DIR       location of the repository (e.g. /usr/local/cogenda/repo)
+ JIG_BLD_DIR        temporary directory for building packages
+ JIG_INSTALL_DIR    target directory where packages are installed
+ 
