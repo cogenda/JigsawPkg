@@ -169,24 +169,18 @@ class Package(object):
         print 'fetching package %s v%s in %s' % (self.name, self.version, self.workDir)
         self.fetch()
 
-    def fetch(self):
-        if self.src_url==None:
-            return
+    def _getFile(self, urls):
+        ''' get a file and save in workDir
+            @return fname, isArchive'''
 
-        src_dir = os.path.join(self.workDir, 'src')
-        #if os.path.exists(src_dir):
-        #    return
-
-        src_file, isarchive = None, False
-        for url in self.src_url:
+        for url in urls:
             print 'Trying to download from %s.' % url
             if url.startswith('http'):
                 try:
                     fname = os.path.basename(urlparse.urlsplit(url)[2])
                     src_file = os.path.join(self.workDir, fname)
                     urllib.urlretrieve(url, src_file)
-                    isarchive = True
-                    break
+                    return src_file, True
                 except Exception,e:
                     print 'Failed to download from %s.' % url
                     print e
@@ -195,20 +189,27 @@ class Package(object):
                     cmd = ['git', 'clone', url]
                     ret = subprocess.call(cmd, cwd=self.workDir)
                     if ret==0:
-                        src_file = ""
-                        break
+                        return '', False
                 except:
                     print 'Failed to download from %s.' % url
             else:
                 try:
                     if not os.path.exists(url):
                         raise Exception
-                    src_file = url
-                    isarchive = True
-                    break
+                    return url, True
                 except:
                     print 'Failed to download from %s.' % url
 
+
+    def fetch(self):
+        if self.src_url==None:
+            return
+
+        src_dir = os.path.join(self.workDir, 'src')
+        #if os.path.exists(src_dir):
+        #    return
+
+        src_file, isarchive = self._getFile(self.src_url)
         if src_file==None:
             raise Exception('Failed fetching package %s v%s' % (self.name, self.version))
 
@@ -493,12 +494,24 @@ class PythonPackage(Package):
 class WafPackage(Package):
     def __init__(self, *args, **kwargs):
         self._setDefault('env', {})
+        self._setDefault('waf_src_url',   ['http://waf.googlecode.com/files/waf-1.6.3'])
         self._setDefault('waf_cmd',   ['python', 'waf'])
         self._setDefault('waf_args', [])
         self._setDefault('build_verb', ['configure', 'build'])
         self._setDefault('install_verb', ['install'])
 
         super(WafPackage, self).__init__(*args, **kwargs)
+
+    def fetch(self):
+        super(WafPackage, self).fetch()
+        
+        f_waf = os.path.join(self.workDir, 'src', 'waf')
+        if os.path.exists(f_waf):
+            return
+
+        # download waf script
+        f, _ = self._getFile(self.waf_src_url)
+        shutil.move(f, f_waf)
 
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
