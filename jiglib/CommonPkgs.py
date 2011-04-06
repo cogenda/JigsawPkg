@@ -548,11 +548,11 @@ class Petsc(GNUPackage):
         paths, ld_paths = [], []
         if 'icc' in self.options:
             icc = self.deps['icc']
-            paths.extend(icc.BINDIR)
-            ld_paths.extend(icc.LDLIBDIR)
+            paths.append(icc.BINDIR)
+            ld_paths.append(icc.LDLIBDIR)
         if 'mkl' in self.options:
             mkl = self.deps['mkl']
-            ld_paths.extend(mkl.LDLIBDIR)
+            ld_paths.append(mkl.LDLIBDIR)
 
         paths.extend(env.get('PATH','').split(':'))
         ld_paths.extend(env.get('LD_LIBRARY_PATH','').split(':'))
