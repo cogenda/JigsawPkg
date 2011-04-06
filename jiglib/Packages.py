@@ -511,7 +511,7 @@ class WafPackage(Package):
 
         # download waf script
         f, _ = self._getFile(self.waf_src_url)
-        shutil.move(f, f_waf)
+        shutil.copy(f, f_waf)
 
     def build(self, tgtDir):
         srcDir = os.path.join(self.workDir, 'src')
