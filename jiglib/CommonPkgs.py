@@ -3,6 +3,11 @@ from Packages import *
 from Util import *
 
 import os, os.path, shutil, glob, subprocess, tempfile
+try:
+    from hashlib import sha1
+except:
+    from sha import new as sha1
+
 
 # {{{ CGNSLib
 class CGNSLib(GNUPackage):
@@ -228,7 +233,7 @@ class QScintilla(GNUPackage):
         # configure
         cmd = ['qmake']
         print cmd
-        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
@@ -319,7 +324,7 @@ class IntelCompiler(SystemPackage):
     version = '1.0'
     features = ['icc', 'icc-redist']
 
-    def __init__(self, envsh, arch='intel64'):
+    def __init__(self, envsh, arch='intel64', **kwargs):
         self.BINDIR = None
         self.LIBDIR = None
         self.LDLIBDIR = None
@@ -351,6 +356,8 @@ echo $LD_LIBRARY_PATH
                     self.__dict__[var] = dir
                     break
 
+        super(IntelCompiler, self).__init__(**kwargs)
+
     def isAvailable(self):
         return self.found
 
@@ -371,20 +378,28 @@ echo $LD_LIBRARY_PATH
 # }}}
 
 # {{{ MKL Library
-class MKL(SystemPackage):
+class MKL(Package):
     name = 'mkl'
     version = '1.0'
     features = ['mkl', 'mkl-redist']
 
-    def __init__(self, envsh, arch=''):
+    def __init__(self, envsh, arch='', **kwargs):
         self.INCDIR = None
         self.LIBDIR = None
         self.LDLIBDIR = None
-        self.LIBPREFIX = 'libmkl_'
-        self.LIBSUFFIX = '_lp64'
-        self.LIBEXT = '.a'
+        self.LIBPREFIX = kwargs.get('libPrefix', 'libmkl')
+        self.INTERFACE = kwargs.get('interface', 'lp64')
+        self.THREAD    = kwargs.get('thread', 'sequential')
+        self.MPI       = kwargs.get('mpi', 'intelmpi')
+        self.SCALAPACK = kwargs.get('scalapack', True)
+        self.singleLib = kwargs.get('singleLib', True)
+        self.LIBEXT = 'a'
 
-        self.found = os.path.exists(envsh)
+        self.dirSingleLib = None
+        self.fileSingleLib = 'libmkl.a'
+
+        if not os.path.exists(envsh):
+            raise Exception
 
         tmpdir = tempfile.mkdtemp()
         str ='''#!/bin/sh
@@ -410,8 +425,12 @@ echo $LD_LIBRARY_PATH
                     self.__dict__[var] = dir
                     break
 
-    def isAvailable(self):
-        return self.found
+        super(MKL, self).__init__(**kwargs)
+
+    def sig(self):
+        lst = [self.name, self.version, self.INTERFACE, self.THREAD, self.MPI,
+               str(self.SCALAPACK)]
+        return sha1(','.join(lst)).hexdigest()[0:7]
 
     def _search_lib(self, dirs, f):
         for dir in dirs:
@@ -420,22 +439,62 @@ echo $LD_LIBRARY_PATH
                 return path
         raise Exception('cannot find %s in %s' % (f, str(dirs)))
 
-    def basic_libs(self):
-        libs = []
-        for lib in ['intel', 'blas95', 'lapack95', 'blacs']:
-            f = ''.join((self.LIBPREFIX, lib, self.LIBSUFFIX, self.LIBEXT))
-            libs.append(self._search_lib([self.LIBDIR], f))
-        for lib in ['core', 'sequential']:
-            f = ''.join((self.LIBPREFIX, lib, self.LIBEXT))
-            libs.append(self._search_lib([self.LIBDIR], f))
-        return libs
 
-    def scalapack_libs(self):
+    def libFileList(self):
+        vars = {'LIBPREFIX': self.LIBPREFIX,
+                'INTERFACE': self.INTERFACE,
+                'THREAD':    self.THREAD,
+                'MPI':       self.MPI,
+                'LIBEXT':    self.LIBEXT}
+
         libs = []
-        for lib in ['scalapack']:
-            f = ''.join((self.LIBPREFIX, lib, self.LIBSUFFIX, self.LIBEXT))
-            libs.append(self._search_lib([self.LIBDIR], f))
-        return libs
+        if self.SCALAPACK:
+            libs.append('${LIBPREFIX}_scalapack_${INTERFACE}.${LIBEXT}')
+        libs.extend([
+            '${LIBPREFIX}_solver_${INTERFACE}_${THREAD}.${LIBEXT}',
+            '${LIBPREFIX}_intel_${INTERFACE}.${LIBEXT}',
+            '${LIBPREFIX}_${THREAD}.${LIBEXT}',
+            '${LIBPREFIX}_core.${LIBEXT}',
+            '${LIBPREFIX}_blacs_${MPI}_${INTERFACE}.${LIBEXT}',
+               ])
+        libs = substVars(libs, vars)
+
+        lst = []
+        for f in libs:
+            lst.append(self._search_lib([self.LIBDIR], f))
+
+        return lst
+
+    def install(self, tgtDir, obj):
+        if not self.singleLib:
+            return
+        
+        tflib = os.path.join(tgtDir, 'lib', 'tmp.%s'%self.fileSingleLib)
+        flib = os.path.join(tgtDir, 'lib', self.fileSingleLib)
+        if os.path.exists(flib): return [flib]   # already installed
+        if os.path.exists(tflib): os.unlink(tflib)
+
+        libs = self.libFileList()
+
+        tmpdir = tempfile.mkdtemp()
+        print 'Combining libraries %s in %s' % (str(libs), tmpdir)
+        for lib in libs:
+            cmd = ['ar', 'x', lib]
+            ret = subprocess.call(cmd, cwd=tmpdir)
+            if not ret==0: raise Exception
+
+        objs = os.listdir(tmpdir)
+        self.dirSingleLib = os.path.join(tgtDir, 'lib')
+
+        cmd = ['ar', 'rcs', tflib]
+        cmd.extend(objs)
+        ret = subprocess.call(cmd, cwd=tmpdir)
+        if not ret==0: raise Exception
+        shutil.rmtree(tmpdir)
+
+        os.rename(tflib, flib)
+        print 'Combined library saved as %s' % flib
+
 # }}}
 
 # {{{ Petsc
@@ -484,7 +543,7 @@ class Petsc(GNUPackage):
                 '--with-scalapack-include=${MKL_INC_DIR}',
                 '--with-blacs-lib=[${MKL_LIBS}]',
                 '--with-blas-lapack-lib=[${MKL_LIBS}]',
-                '--with-scalapack-lib=[${MKL_SCALAPACK_LIBS}]',
+                '--with-scalapack-lib=[${MKL_LIBS}]',
                 ]
     prereqs_src_mkl_append = ['mkl']
 
@@ -574,12 +633,12 @@ class Petsc(GNUPackage):
         if 'mkl' in self.options:
             mkl = self.deps['mkl']
             vars['MKL_INC_DIR'] = mkl.INCDIR
-            vars['MKL_LIB_DIR'] = mkl.LIBDIR
-            vars['MKL_LIBS']    = ','.join(mkl.basic_libs())
-
-            libs = list(mkl.scalapack_libs())
-            libs.extend(icc.ifcore_libs())
-            vars['MKL_SCALAPACK_LIBS'] = ','.join(libs)
+            if mkl.singleLib:
+                vars['MKL_LIB_DIR'] = mkl.dirSingleLib
+                vars['MKL_LIBS']    = os.path.join(mkl.dirSingleLib, mkl.fileSingleLib)
+            else:
+                vars['MKL_LIB_DIR'] = mkl.LIBDIR
+                vars['MKL_LIBS']    = ','.join(mkl.libFileList())
 
         return super(Petsc, self)._subst_vars(lst_or_dict, vars)
     # }}}

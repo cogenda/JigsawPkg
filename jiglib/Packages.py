@@ -273,7 +273,7 @@ class Package(object):
 
 # }}}
 
-# {{{ SystemPackage
+# {{{ class SystemPackage
 class SystemPackage(object):
     def _setDefault(self, name, val):
         if not (self.__dict__.has_key(name) or 
@@ -286,7 +286,8 @@ class SystemPackage(object):
 
         self._setDefault('name', 'Unknown')
         self._setDefault('version', '1.0')
-        self._setDefault('features', [])
+        self._setDefault('features', [self.name])
+        self._setDefault('deps', {})
 
     def sig(self):
         lst = [self.name, self.version]
@@ -295,8 +296,12 @@ class SystemPackage(object):
     def isAvailable(self):
         raise NotImplementedError
 
-    def _installWorld(self, wldDir):
+    def installWorld(self, wldDir):
         pass
+
+    def _installWorld(self, wldDir):
+        print 'installing system package %s v%s to world %s' % (self.name, self.version, wldDir)
+        self.installWorld(wldDir)
 
 # }}}
 
