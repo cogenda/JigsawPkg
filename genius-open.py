@@ -5,8 +5,8 @@ class Genius(WafPackage):
     name = 'Genius'
     version = '20110401'
     prereqs_src = ['petsc', 'cgnslib', 'vtk']
-    src_url = ['http://download.github.com/cogenda-Genius-TCAD-Open-20110405-0-g7ae2374.tar.gz',
-              '/home/public/software/TCAD/genius-20110401-open.tar.bz2']
+    src_url = ['http://github.com/cogenda/Genius-TCAD-Open/tarball/20110405',
+               '/home/public/software/TCAD/genius-20110401-open.tar.bz2']
 
     def __init__(self, *args, **kwargs):
 
@@ -23,12 +23,15 @@ class Genius(WafPackage):
             #'--with-vtk-ver=vtk-5.4',
             ]
 
-    def installWorld(self, wldDir, objDir, obj):
+    def install(self, tgtDir, obj):
         for d in ['bin', 'lib', 'examples']:
-            dir = os.path.join(wldDir, 'genius', d)
+            dir = os.path.join(tgtDir, 'genius', d)
             if not os.path.exists(dir):
                 os.makedirs(dir)
 
+        super(Genius, self).install(tgtDir, obj)
+
+    def installWorld(self, wldDir, objDir, obj):
         lst = super(Genius, self).installWorld(wldDir, objDir, obj)
 
         script='''#!/bin/sh
