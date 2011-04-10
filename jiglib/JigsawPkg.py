@@ -137,30 +137,6 @@ class World(object):
         '''make world, if any requested packages aren't installed yet,
            install them.'''
 
-        def _activate_package(package):
-            if isinstance(package, SystemPackage):
-                # system package
-                print package, package.name, package.version
-                return
-
-            # src package
-            _, installed = self.packages[package.sig()]
-            if installed: return
-
-            for _, dep in package.deps.iteritems():
-                _activate_package(dep)          # activate deps first
-
-            features = package.features
-            if package.name in features:    # the default feature is requested
-                features = [package.name]   # no need to activate the component 
-
-            for feature in features:
-                print 'activating %s' % feature
-                oDir = self.repo.getObjPath(feature, sig=package.sig())
-                lst = package._installWorld(self.rootDir, oDir, feature)
-                self.fileList.extend(lst)
-            self.packages[package.sig()] = (package,True)
-
         if len(self.fileList)>0:
             raise Error
 
@@ -169,8 +145,58 @@ class World(object):
             if not os.path.exists(dir):
                 os.makedirs(dir)
 
+        avails   = {}
+        requests = {}
+
+        # {{{ available & request
+        def _available(package):
+            for f in package.features:
+                avails[f] = package
+            for _,dep in package.deps.iteritems():
+                _available(dep)
+        
+        def _requestDep(package):
+            for f in package.prereqs:
+                if f.startswith('sys:'):
+                    continue # sys requirement
+                requests[f] = True
+            for _,dep in package.deps.iteritems():
+                if isinstance(dep, Package):
+                    _requestDep(dep)
+        # }}}
+        
         for _,(package, installed) in self.packages.iteritems():
-            _activate_package(package)
+            _available(package)
+            for f in package.features:
+                requests[f] = True
+            _requestDep(package)
+
+        to_install = {}
+        for req in requests.keys():
+            if not avails.has_key(req):
+                raise Exception('Prerequisite %s not met', req)
+            package = avails[req]
+            if to_install.has_key(package):
+                to_install[package].append(req)
+            else:
+                to_install[package] = [req]
+
+
+        for package, features in to_install.iteritems():
+            if package.features[0] in features:
+                features = [package.features[0]] # first feature contains everything
+            for feature in features:
+                print 'activating %s' % feature
+                oDir = self.repo.getObjPath(feature, sig=package.sig())
+                if isinstance(package, Package):
+                    lst = package._installWorld(self.rootDir, oDir, feature)
+                    self.fileList.extend(lst)
+                elif isinstance(package, SystemPackage):
+                    pass
+                else:
+                    raise TypeError
+            self.packages[package.sig()] = (package,True)
+
 
 
     def unmake(self):
@@ -297,7 +323,6 @@ class Collection(object):
         return True
 
     def install(self, wldDir):
-        mode = 'redist'
         world = World(self.repo, wldDir)
 
         if not self.checkSysDeps(): return
@@ -305,10 +330,8 @@ class Collection(object):
         for p in self.systemPkgs():
             p._installWorld(wldDir)
         for p in self.packages():
-            for obj in p.features:
-                oDir = self.repo.getObjPath(obj, sig=p.sig())
-                if oDir==None: raise Exception
-                p._installWorld(wldDir, oDir, obj)
+            world.addPackage(p)
+        world.make()
 
         # write setenv script
         script='''#!/bin/sh
@@ -327,8 +350,6 @@ fi
 
 
     def build(self):
-        mode = 'src'
-        
         if not self.checkSysDeps(): return
 
         for p in self.packages():

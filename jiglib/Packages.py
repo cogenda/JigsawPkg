@@ -1,6 +1,5 @@
 __all__ = ['Package', 'SystemPackage', 
-           'GNUPackage', 'CMakePackage', 'PythonPackage', 'WafPackage',
-           'mode']
+           'GNUPackage', 'CMakePackage', 'PythonPackage', 'WafPackage',]
 
 import os, os.path, shutil, tempfile, glob
 import tarfile, zipfile, subprocess, re, string
@@ -10,8 +9,7 @@ try:
 except:
     from sha import new as sha1
 from Util import *
-
-mode = 'src'
+import Settings
 
 # {{{ class Package
 class Package(object):
@@ -29,16 +27,21 @@ class Package(object):
         self._setDefault('optionList', []) # possible options
         self._setDefault('env', {})
 
+        # all dependencies
         self.deps = {}
+        
+        # explicitly declared deps, for calculating signature
+        self.args = {}
 
         for dep in args:
             self.deps[dep.name] = dep
+            self.args[dep.name] = dep
 
         # selected options
         self.options = kwargs.get('options', [])
 
         self.prereqs = self._opt_merge_lists('prereqs')
-        if mode=='src':
+        if Settings.mode=='src':
             self.prereqs.extend(self._opt_merge_lists('prereqs_src'))
 
         self.checkPreReq()
@@ -131,7 +134,7 @@ class Package(object):
     def sig(self):
         lst = [self.name, self.version]
         lst.extend(self.options)
-        for _,dep in self.deps.iteritems():
+        for _,dep in self.args.iteritems():
             lst.append(str(dep.sig()))
         #lst.append(str(self.__class__.build.__hash__()))
         #lst.append(str(self.__class__.install.__hash__()))
@@ -174,8 +177,25 @@ class Package(object):
             @return fname, isArchive'''
 
         for url in urls:
+            if isinstance(url, tuple):
+                url, arg = url[0:2]
+            else:
+                arg = None
             print 'Trying to download from %s.' % url
-            if url.startswith('http'):
+
+            if url.startswith('ssh+git') or \
+               url.startswith('http') and url.endswith('.git'):
+                try:
+                    cmd = ['git', 'clone', url, 'repo']
+                    ret = subprocess.call(cmd, cwd=self.workDir)
+                    if ret==0:
+                        return '', False
+                    if arg:
+                        cmd = ['git', 'checkout', arg]
+                        ret = subprocess.call(cmd, cwd=os.path.join(self.workDir, 'repo'))
+                except:
+                    print 'Failed to download from %s.' % url
+            elif url.startswith('http'):
                 try:
                     fname = os.path.basename(urlparse.urlsplit(url)[2])
                     src_file = os.path.join(self.workDir, fname)
@@ -184,14 +204,6 @@ class Package(object):
                 except Exception,e:
                     print 'Failed to download from %s.' % url
                     print e
-            elif url.startswith('ssh+git'):
-                try:
-                    cmd = ['git', 'clone', url]
-                    ret = subprocess.call(cmd, cwd=self.workDir)
-                    if ret==0:
-                        return '', False
-                except:
-                    print 'Failed to download from %s.' % url
             else:
                 try:
                     if not os.path.exists(url):
@@ -337,7 +349,7 @@ class GNUPackage(Package):
         cmd = self._subst_vars(cmd, vars)
 
         print cmd
-        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
@@ -405,7 +417,7 @@ class CMakePackage(Package):
         cmd.append('../src')
 
         print cmd
-        ret = subprocess.call(cmd, True, cwd=bldDir, env=env)
+        ret = subprocess.call(cmd, cwd=bldDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
@@ -472,7 +484,7 @@ class PythonPackage(Package):
         cmd = self._subst_vars(cmd, vars)
 
         print cmd
-        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
@@ -489,7 +501,7 @@ class PythonPackage(Package):
         cmd = self._subst_vars(cmd, vars)
 
         print cmd
-        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
@@ -531,7 +543,7 @@ class WafPackage(Package):
         cmd = self._subst_vars(cmd, vars)
 
         print cmd
-        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
@@ -548,7 +560,7 @@ class WafPackage(Package):
         cmd = self._subst_vars(cmd, vars)
 
         print cmd
-        ret = subprocess.call(cmd, True, cwd=srcDir, env=env)
+        ret = subprocess.call(cmd, cwd=srcDir, env=env)
         if not ret==0:
             raise Exception('Failed to execute %s' % str(cmd))
 
