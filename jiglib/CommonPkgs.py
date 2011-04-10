@@ -151,7 +151,14 @@ class Python(GNUPackage):
             os.unlink(tgtPath)
             script='''#!/bin/sh
 export PYTHONHOME=%s
-%s $*
+
+args=()
+for arg in "$@"
+do
+    args[$i]="$arg"
+    ((++i))
+done
+exec %s "${args[@]}"
 ''' % (wldDir, path)
             writeFile(wldDir, os.path.join('bin',binname), script, mode=0755)
 
@@ -395,7 +402,6 @@ class MKL(Package):
         self.singleLib = kwargs.get('singleLib', True)
         self.LIBEXT = 'a'
 
-        self.dirSingleLib = None
         self.fileSingleLib = 'libmkl.a'
 
         if not os.path.exists(envsh):
@@ -484,7 +490,6 @@ echo $LD_LIBRARY_PATH
             if not ret==0: raise Exception
 
         objs = os.listdir(tmpdir)
-        self.dirSingleLib = os.path.join(tgtDir, 'lib')
 
         cmd = ['ar', 'rcs', tflib]
         cmd.extend(objs)
@@ -500,11 +505,12 @@ echo $LD_LIBRARY_PATH
 # {{{ Petsc
 class Petsc(GNUPackage):
     name = 'petsc'
+    featureList = ['petsc', 'petsc-redist']
     version = '3.1-p8'
     src_url = ['/home/public/software/petsc/petsc-lite-3.1-p8.tar.gz',
                'http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-lite-3.1-p8.tar.gz'
               ]
-    conf_cmd  = ['python', 'configure']
+    conf_cmd  = ['./configure']
     conf_args_common = [
                 '--with-debugging=0',
                 '--with-shared=0',
@@ -522,7 +528,12 @@ class Petsc(GNUPackage):
                 ]
 
     # icc
-    conf_args_icc_append = ['--with-vendor-compilers=intel']
+    conf_args_icc_append = ['--with-vendor-compilers=intel',
+                            '--CFLAGS=-O2 -unroll -axSSE4.2,SSE4.1,SSSE3 -msse3',
+                            '--CXXFLAGS=-O2 -unroll -axSSE4.2,SSE4.1,SSSE3 -msse3',
+                            '--FFLAGS=-O2 -unroll -axSSE4.2,SSE4.1,SSSE3 -msse3',
+                            '--LDFLAGS=-static-intel',
+                           ]
     prereqs_src_icc_append = ['icc']
 
     # {{{ Linear Algebra libraries
@@ -563,11 +574,71 @@ class Petsc(GNUPackage):
 
     # }}}
 
-    dest_path_fixes = ['conf/*']
+    # {{{ patches
+    patches = [
+# {{{ 1. Free-up excess memory allocation for Aij matrix
+r'''--- petsc-3.1-p7/src/mat/impls/aij/seq/aij.c    2010-03-25 22:13:15.000000000 +0800
++++ petsc-3.1-p5/src/mat/impls/aij/seq/aij.c    2011-02-18 22:21:22.000000000 +0800
+@@ -688,6 +688,8 @@
+   PetscInt       m = A->rmap->n,*ip,N,*ailen = a->ilen,rmax = 0;
+   MatScalar      *aa = a->a,*ap;
+   PetscReal      ratio=0.6;
++  PetscInt       *new_i, *new_j;
++  MatScalar      *new_a;
+
+   PetscFunctionBegin;
+   if (mode == MAT_FLUSH_ASSEMBLY) PetscFunctionReturn(0);
+@@ -721,6 +723,19 @@
+     SETERRQ3(PETSC_ERR_PLIB, "Unused space detected in matrix: %D X %D, %D unneeded", m, A->cmap->n, fshift);
+   }
+
++  if(a->maxnz > a->nz)
++  {
++    ierr = PetscMalloc3(a->nz,MatScalar,&new_a,a->nz,PetscInt,&new_j,A->rmap->n+1,PetscInt,&new_i);CHKERRQ(ierr);
++    ierr = PetscMemcpy(new_a,a->a,a->nz*sizeof(MatScalar));CHKERRQ(ierr);
++    ierr = PetscMemcpy(new_i,a->i,(A->rmap->n+1)*sizeof(PetscInt));CHKERRQ(ierr);
++    ierr = PetscMemcpy(new_j,a->j,a->nz*sizeof(PetscInt));CHKERRQ(ierr);
++    ierr = MatSeqXAIJFreeAIJ(A,&a->a,&a->j,&a->i);CHKERRQ(ierr);
++    a->a = new_a;
++    a->i = new_i;
++    a->j = new_j;
++    a->maxnz = a->nz;
++  }
++
+   ierr = MatMarkDiagonal_SeqAIJ(A);CHKERRQ(ierr);
+   ierr = PetscInfo4(A,"Matrix size: %D X %D; storage space: %D unneeded,%D used\n",m,A->cmap->n,fshift,a->nz);CHKERRQ(ierr);
+   ierr = PetscInfo1(A,"Number of mallocs during MatSetValues() is %D\n",a->reallocs);CHKERRQ(ierr);
+''',# }}}
+    ]
+    if version2int(version)<=version2int('3.2'):
+        patches.extend(
+            [
+# {{{ 2. Dirty trick to fix petscfix.h, NOT NECESSARY for petsc-dev
+r'''--- a/config/BuildSystem/config/framework.py      2011-04-09 23:21:04.000000000 +0800
++++ b/config/BuildSystem/config/framework.py   2011-04-10 17:51:45.000000000 +0800
+@@ -803,9 +803,9 @@
+     for child in self.childGraph.vertices:
+       self.outputPrototypes(f, child, 'Cxx')
+     f.write('extern "C" {\n')
+-    self.outputPrototypes(f, self, 'extern C')
++    self.outputPrototypes(f, self, 'C')
+     for child in self.childGraph.vertices:
+-      self.outputPrototypes(f, child, 'extern C')
++      self.outputPrototypes(f, child, 'C')
+     f.write('}\n')
+     f.write('#else\n')
+     self.outputPrototypes(f, self, 'C')
+''',
+# }}}
+            ])
+    # }}}
 
     # {{{ __init__()
     def __init__(self, *args, **kwargs):
-        options = kwargs.get('options', ['solver'])
+        options = kwargs.get('options', [])
+        if not 'solver' in options:
+            options.append('solver')
+
         if not ( 'mpich2_epel'  in options or
                  'mpich2'       in options or
                  'nompi'        in options ):
@@ -597,6 +668,8 @@ class Petsc(GNUPackage):
         self.conf_args.extend(
             [ '--prefix=%s/petsc/%s'   %  ('${TGTDIR}', self.arch) ])
 
+        self.dest_path_fixes = ['petsc/%s/conf/*' % self.arch]
+
         super(Petsc, self).__init__(*args, **kwargs)
     # }}}
 
@@ -609,6 +682,11 @@ class Petsc(GNUPackage):
             icc = self.deps['icc']
             paths.append(icc.BINDIR)
             ld_paths.append(icc.LDLIBDIR)
+
+            env['MPICH_CC']  = 'icc'
+            env['MPICH_CXX'] = 'icpc'
+            env['MPICH_F77'] = 'ifort'
+            env['MPICH_F90'] = 'ifort'
         if 'mkl' in self.options:
             mkl = self.deps['mkl']
             ld_paths.append(mkl.LDLIBDIR)
@@ -634,13 +712,30 @@ class Petsc(GNUPackage):
             mkl = self.deps['mkl']
             vars['MKL_INC_DIR'] = mkl.INCDIR
             if mkl.singleLib:
-                vars['MKL_LIB_DIR'] = mkl.dirSingleLib
-                vars['MKL_LIBS']    = os.path.join(mkl.dirSingleLib, mkl.fileSingleLib)
+                vars['MKL_LIB_DIR'] = os.path.join(vars['TGTDIR'], 'lib')
+                vars['MKL_LIBS']    = os.path.join(vars['TGTDIR'], 'lib', mkl.fileSingleLib)
             else:
                 vars['MKL_LIB_DIR'] = mkl.LIBDIR
                 vars['MKL_LIBS']    = ','.join(mkl.libFileList())
 
         return super(Petsc, self)._subst_vars(lst_or_dict, vars)
+    # }}}
+
+    # {{{ install
+    def install(self, tgtDir, obj):
+        if obj=='petsc':
+            super(Petsc, self).install(tgtDir, obj)
+
+        # petsc-redist
+        if 'mpich2_epel' in self.options:
+            patterns = [('/usr/lib64/mpich2/lib', 'lib', '*.so*'),
+                        ]
+            for srcDir,dst,pat in patterns:
+                dstDir = os.path.join(tgtDir, dst)
+                for path in glob.glob('%s/%s' % (srcDir,pat)):
+                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
+                    copyX(path, tgtPath)
+
     # }}}
 
 # }}}

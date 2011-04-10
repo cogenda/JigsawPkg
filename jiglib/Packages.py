@@ -10,6 +10,7 @@ except:
     from sha import new as sha1
 from Util import *
 import Settings
+from Logger import *
 
 # {{{ class Package
 class Package(object):
@@ -18,6 +19,7 @@ class Package(object):
                 self.__class__.__dict__.has_key(name)):
             self.__dict__[name] = val
 
+    # {{{ __init__()
     def __init__(self, *args, **kwargs):
         self._setDefault('name', 'Unknown')
         self._setDefault('version', '1.0')
@@ -26,6 +28,8 @@ class Package(object):
         self._setDefault('src_url', None)
         self._setDefault('optionList', []) # possible options
         self._setDefault('env', {})
+        self._setDefault('patches', [])
+        self._setDefault('logger', std_logger)
 
         # all dependencies
         self.deps = {}
@@ -63,7 +67,9 @@ class Package(object):
                     self.features.append(f)
 
         self.workDir = None
+    # }}}
 
+    # {{{ _opt_merge_lists()
     def _opt_merge_lists(self, prefix):
         maps = [self.__dict__,self.__class__.__dict__]
         appends = []
@@ -87,7 +93,9 @@ class Package(object):
                 try: res.remove(o)
                 except: pass
         return res
+    # }}}
 
+    # {{{ _opt_merge_dict
     def _opt_merge_dict(self, prefix):
         maps = [self.__dict__,self.__class__.__dict__]
         appends = []
@@ -111,7 +119,9 @@ class Package(object):
                 try: del res[k]
                 except: pass
         return res
+    # }}}
 
+    # {{{ checkPreReq()
     def checkPreReq(self):
         avail = {}
         for _,dep in self.deps.iteritems():
@@ -130,7 +140,9 @@ class Package(object):
             else:
                 if not avail.has_key(req):
                     raise Exception('Missing Pre-requisite Argument: %s' % req)
+    # }}}
 
+    # {{{ sig()
     def sig(self):
         lst = [self.name, self.version]
         lst.extend(self.options)
@@ -140,14 +152,37 @@ class Package(object):
         #lst.append(str(self.__class__.install.__hash__()))
         
         return sha1(','.join(lst)).hexdigest()[0:7]
+    # }}}
 
+    # {{{ dirName
     def dirName(self, obj=None):
         if obj==None:   name=self.features[0]
         else:           name=obj
         return '%s.%s.%s' % (name, self.version, self.sig())
+    # }}}
+
+    # {{{ patch
+    def patch(self):
+        patches = self._opt_merge_lists('patches')
+        for i,patch in enumerate(patches):
+            self.logger.write_begin('Applying patch %d' % (i+1))
+            if isinstance(patch, tuple):
+                patch, mandatory = patch
+            else: mandatory = False
+            ret = cmd_n_log(['patch', '-p1'],
+                            input=patch,
+                            cwd=os.path.join(self.workDir, 'src'),
+                            logger=self.logger)
+            if ret==None:
+                self.logger.write_end('fail')
+                if mandatory:
+                    raise Exception
+            else:
+                self.logger.write_end('ok')
+    # }}}
 
     def _patch(self):
-        pass
+        self.patch()
 
     def build(self, tgtDir):
         pass
@@ -172,6 +207,7 @@ class Package(object):
         print 'fetching package %s v%s in %s' % (self.name, self.version, self.workDir)
         self.fetch()
 
+    # {{{ _getFile()
     def _getFile(self, urls):
         ''' get a file and save in workDir
             @return fname, isArchive'''
@@ -211,8 +247,9 @@ class Package(object):
                     return url, True
                 except:
                     print 'Failed to download from %s.' % url
+    # }}}
 
-
+    # {{{ fetch()
     def fetch(self):
         if self.src_url==None:
             return
@@ -241,7 +278,9 @@ class Package(object):
             if os.path.isdir(epath):
                 shutil.move(epath, src_dir)
                 break
+    # }}}
 
+    # {{{ installWorld()
     def installWorld(self, wldDir, objDir, obj):
         if objDir==None:
             raise Error
@@ -261,18 +300,24 @@ class Package(object):
                 os.symlink(os.path.join(path,file), tgt)
                 fileList.append(tgt)
         return fileList
+    # }}}
 
+    # {{{ _installWorld()
     def _installWorld(self, wldDir, objDir, obj=None):
         if obj==None:   obj=self.features[0]
         print 'installing package %s v%s to world %s' % (obj, self.version, wldDir)
         return self.installWorld(wldDir, objDir, obj)
+    # }}}
 
+    # {{{ _subst_vars()
     def _subst_vars(self, lst_or_dict, vars):
         v = dict(**vars)
         if not self.workDir==None:
             v['SRCDIR'] = os.path.join(self.workDir, 'src')
         return substVars(lst_or_dict, v)
+    # }}}
 
+    # {{{ _commonEnv()
     def _commonEnv(self, vars):
         env = self._opt_merge_dict('env')
         env = dict(os.environ, **env)
@@ -281,6 +326,7 @@ class Package(object):
         env['PATH'] = '%s:%s' % (os.path.join(tgtDir,'bin'), env.get('PATH',''))
         env['LD_LIBRARY_PATH'] = '%s:%s' % (os.path.join(tgtDir,'lib'), env.get('LD_LIBRARY_PATH',''))
         return self._subst_vars(env, vars)
+    # }}}
 
 
 # }}}
@@ -565,3 +611,4 @@ class WafPackage(Package):
             raise Exception('Failed to execute %s' % str(cmd))
 
 # }}}
+
