@@ -3,7 +3,7 @@ __all__=['writeFile', 'copyX', 'subTxtFile', 'substVars', 'version2int']
 import sys, os, os.path, shutil, tempfile, glob
 import re, string
 
-# {{{ utils
+# {{{ copyX
 def copyX(src, dst):
     dir=os.path.dirname(dst)
     if not os.path.exists(dir): os.makedirs(dir)
@@ -16,8 +16,9 @@ def copyX(src, dst):
         os.symlink(linkto, dst)
     else:
         shutil.copy2(src, dst)
+# }}}
 
-
+# {{{ writeFile
 def writeFile(rootpath, relpath, data, mode=0666, uid=-1, gid=-1):
     fname = os.path.join(rootpath, relpath)
     dir,_ = os.path.split(fname)
@@ -29,7 +30,9 @@ def writeFile(rootpath, relpath, data, mode=0666, uid=-1, gid=-1):
 
     os.chown(fname, uid, gid)
     os.chmod(fname, mode)
+# }}}
 
+# {{{ subTxtFile
 def subTxtFile(path, pattern, replace, mode='plain'):
     fin = open(path, 'r')
     lines = fin.readlines()
@@ -42,7 +45,9 @@ def subTxtFile(path, pattern, replace, mode='plain'):
         else:
             fout.write(string.replace(l, pattern, replace))
     fout.close()
+# }}}
 
+# {{{ version2int
 def version2int(ver):
     parts = re.split(r'\.|-p?', ver)
     v = 0
@@ -52,8 +57,9 @@ def version2int(ver):
             try: v += int(parts[i])
             except: pass
     return v
+# }}}
 
-
+# {{{ substVars
 def substVars(lst_or_dict, vars):
     def _var(match):
         name=match.group(1)
@@ -72,8 +78,9 @@ def substVars(lst_or_dict, vars):
         for k,v in lst_or_dict.iteritems():
             res[k] = re.sub(pattern, _var, v)
         return res
+# }}}
 
-
+# {{{ os.path.relpath()
 # Creates os.path.relpath for Python 2.4
 if not hasattr(os.path, 'relpath'):
     if os.path is sys.modules.get('ntpath'):
