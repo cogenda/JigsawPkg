@@ -532,7 +532,6 @@ class Petsc(GNUPackage):
                             '--CFLAGS=-O2 -unroll -axSSE4.2,SSE4.1,SSSE3 -msse3',
                             '--CXXFLAGS=-O2 -unroll -axSSE4.2,SSE4.1,SSSE3 -msse3',
                             '--FFLAGS=-O2 -unroll -axSSE4.2,SSE4.1,SSSE3 -msse3',
-                            '--LDFLAGS=-static-intel',
                            ]
     prereqs_src_icc_append = ['icc']
 

@@ -222,13 +222,16 @@ class Package(object):
             if url.startswith('ssh+git') or \
                url.startswith('http') and url.endswith('.git'):
                 try:
-                    cmd = ['git', 'clone', url, 'repo']
-                    ret = subprocess.call(cmd, cwd=self.workDir)
-                    if ret==0:
+                    ret = cmd_n_log(['git', 'clone', url, 'repo'],
+                                    cwd=self.workDir,
+                                    logger=self.logger)
+                    if ret==None:
                         return '', False
                     if arg:
                         cmd = ['git', 'checkout', arg]
                         ret = subprocess.call(cmd, cwd=os.path.join(self.workDir, 'repo'))
+                    src_file = os.path.join(self.workDir, 'repo')
+                    return src_file, False
                 except:
                     print 'Failed to download from %s.' % url
             elif url.startswith('http'):
