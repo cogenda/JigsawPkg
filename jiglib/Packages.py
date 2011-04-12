@@ -267,11 +267,19 @@ class Package(object):
 
         if isarchive:
             if tarfile.is_tarfile(src_file):
-                tf = tarfile.open(src_file)
-                tf.extractall(self.workDir)
+                if hasattr(tarfile.TarFile, 'extractall'):
+                    tf = tarfile.open(src_file)
+                    tf.extractall(self.workDir)
+                else:
+                    cmd = ['tar', '-xf', src_file]
+                    cmd_n_log(cmd, cwd=self.workDir, logger=self.logger)
             elif zipfile.is_zipfile(src_file):
-                zf = zipfile.ZipFile(src_file)
-                zf.extractall(self.workDir)
+                if hasattr(zipfile.ZipFile, 'extractall'):
+                    zf = zipfile.ZipFile(src_file)
+                    zf.extractall(self.workDir)
+                else:
+                    cmd = ['unzip', src_file]
+                    cmd_n_log(cmd, cwd=self.workDir, logger=self.logger)
 
         src_dir = os.path.join(self.workDir, 'src')
         if os.path.lexists(src_dir):
