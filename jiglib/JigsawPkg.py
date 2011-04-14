@@ -1,16 +1,23 @@
 __all__ = ['Repository', 'World', 'Collection', 'BaseSystem']
 
-import os, os.path, shutil, tempfile, glob, subprocess
+import os, os.path, shutil, tempfile, glob
 import re, string
 from Packages import Package, SystemPackage
 from Util import *
+from Logger import *
 
 # {{{ class Repository
 class Repository(object):
-    def __init__(self, rootDir, tmpDir='/tmp'):
+    def __init__(self, rootDir, tmpDir='/tmp', **kwargs):
         self.rootDir = rootDir
         self.tmpDir = tmpDir
         self.objects = []
+
+        logRepo = kwargs.get('logger', [])
+        if not isinstance(logRepo, list):
+            logRepo=[logRepo]
+        logRepo.append(Logger(open(os.path.join(rootDir, 'output.log'), 'a'), 1))
+        self.logger = MultiLogger(logRepo)
 
         self.scan()
 
@@ -71,10 +78,15 @@ class Repository(object):
             world.make()
             worlds[i] = world
 
+        if not os.path.exists(package.workDir):
+            os.makedirs(package.workDir)
+
+        # log for building the package
+        logPkg = Logger(open(os.path.join(package.workDir, 'output.log'), 'w+'))
+        package.logger = MultiLogger([self.logger, logPkg])
+
         # build if necessary
         if not os.path.exists(os.path.join(package.workDir, 'finished')):
-            if not os.path.exists(package.workDir):
-                os.makedirs(package.workDir)
 
             # prepare package
             package._fetch()
@@ -82,7 +94,7 @@ class Repository(object):
 
             package._build(tgtDir)
             writeFile(package.workDir, 'finished', '1') # mark it as finished
-        
+
         # install, diff, and add to repo
         for i,obj in enumerate(package.features):
             if not self.getObjPath(obj, sig=package.sig())==None:
@@ -116,11 +128,13 @@ class Repository(object):
 
 # {{{ class World
 class World(object):
-    def __init__(self, repo, rootDir=None):
+    def __init__(self, repo, rootDir=None, **kwargs):
         self.repo = repo
         self.packages = {}
         self.rootDir = rootDir
         self.fileList = []
+
+        self.logger = kwargs.get('logger', std_logger)
 
     def addPackage(self, package):
         def _doAdd(package):
@@ -186,7 +200,7 @@ class World(object):
             if package.features[0] in features:
                 features = [package.features[0]] # first feature contains everything
             for feature in features:
-                print 'activating %s' % feature
+                self.logger.write('activating %s' % feature)
                 oDir = self.repo.getObjPath(feature, sig=package.sig())
                 if isinstance(package, Package):
                     lst = package._installWorld(self.rootDir, oDir, feature)
@@ -213,7 +227,7 @@ class World(object):
                     empty = _cleandir(ent_path) and empty
                 else:
                     empty = False
-            if empty:
+            if empty and not path==self.rootDir:
                 os.rmdir(path)
             return empty
         _cleandir(self.rootDir)
@@ -227,7 +241,9 @@ class World(object):
 
 # {{{ BaseSystem
 class BaseSystem(object):
-    def __init__(self):
+    def __init__(self, **kwargs):
+        self.logger = kwargs.get('logger', std_logger)
+
         relf = os.path.join('/etc', 'redhat-release')
         if not os.path.exists(relf):
             raise Exception('Only Redhat-based Linux is supported.')
@@ -241,7 +257,7 @@ class BaseSystem(object):
         if vendor=='CentOS' or vendor.startswith('Red Hat'):
             if version2int(version)<5000000:
                 raise Exception('Need at least CentOS 5.0')
-            print 'Found %s %s' % (vendor, version)
+            self.logger.write('Found %s %s' % (vendor, version))
         else:
             raise Exception('We do not know %s %s' % (vendor, version))
 
@@ -253,15 +269,13 @@ class BaseSystem(object):
             raise Exception('Only x86_64 system is supported')
 
         self.rpms = {}
-        cmd = ['yum', 'list', 'installed']
-        output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()[0]
-        lines = output.split('\n')
+        lines = cmd_n_log(['yum', 'list', 'installed'], logger=self.logger)
         for line in lines[2:]:
             try:
                 name, ver, _ = line.split()
                 self.rpms[name] = ver
             except:
-                print 'err...whats this?', line
+                self.logger.write('unrecognized system package: ' + line)
 
     def hasPackage(self, package):
         if not isinstance(package, SystemPackage):
@@ -286,9 +300,11 @@ class BaseSystem(object):
 
 # {{{ Collection
 class Collection(object):
-    def __init__(self, repo, baseSys):
+    def __init__(self, repo, baseSys, **kwargs):
         self.repo = repo
         self.baseSys = baseSys
+        
+        self.logger = kwargs.get('logger', std_logger)
 
     def packages(self):
         lst = []
@@ -316,9 +332,9 @@ class Collection(object):
             if not self.baseSys.hasPackage(p):
                 missList.append(p)
         if len(missList)>0:
-            print 'The following system packages are required'
+            self.logger.write('The following system packages are required')
             for p in missList:
-                print p.name, p.version
+                self.logger.write('%20s   %s' % (p.name, p.version))
             return False
         return True
 

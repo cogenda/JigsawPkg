@@ -2,7 +2,7 @@ __all__ = ['Package', 'SystemPackage',
            'GNUPackage', 'CMakePackage', 'PythonPackage', 'WafPackage',]
 
 import os, os.path, shutil, tempfile, glob
-import tarfile, zipfile, subprocess, re, string
+import tarfile, zipfile, re, string
 import urlparse, urllib
 try:
     from hashlib import sha1
@@ -191,12 +191,12 @@ class Package(object):
         pass
 
     def _build(self, tgtDir):
-        print 'building package %s v%s in %s' % (self.name, self.version, self.workDir)
+        self.logger.write('building package %s v%s in %s' % (self.name, self.version, self.workDir))
         self.build(tgtDir)
 
     def _install(self, tgtDir, obj=None):
         if obj==None:   obj=self.features[0]
-        print 'installing package %s v%s in %s' % (obj, self.version, tgtDir)
+        self.logger.write('installing package %s v%s in %s' % (obj, self.version, tgtDir))
         self.install(tgtDir, obj)
 
     def _cleanup(self):
@@ -204,7 +204,7 @@ class Package(object):
             shutil.rmtree(self.workDir)
 
     def _fetch(self):
-        print 'fetching package %s v%s in %s' % (self.name, self.version, self.workDir)
+        self.logger.write('fetching package %s v%s in %s' % (self.name, self.version, self.workDir))
         self.fetch()
 
     # {{{ _getFile()
@@ -217,7 +217,7 @@ class Package(object):
                 url, arg = url[0:2]
             else:
                 arg = None
-            print 'Trying to download from %s.' % url
+            self.logger.write('Trying to download from %s.' % url)
 
             if url.startswith('ssh+git') or \
                url.startswith('http') and url.endswith('.git'):
@@ -228,12 +228,13 @@ class Package(object):
                     if ret==None:
                         return '', False
                     if arg:
-                        cmd = ['git', 'checkout', arg]
-                        ret = subprocess.call(cmd, cwd=os.path.join(self.workDir, 'repo'))
+                        cmd_n_log(['git', 'checkout', arg],
+                                  cwd=os.path.join(self.workDir, 'repo'),
+                                  logger=self.logger)
                     src_file = os.path.join(self.workDir, 'repo')
                     return src_file, False
                 except:
-                    print 'Failed to download from %s.' % url
+                    self.logger.write('Failed to download from %s.' % url)
             elif url.startswith('http'):
                 try:
                     fname = os.path.basename(urlparse.urlsplit(url)[2])
@@ -241,15 +242,14 @@ class Package(object):
                     urllib.urlretrieve(url, src_file)
                     return src_file, True
                 except Exception,e:
-                    print 'Failed to download from %s.' % url
-                    print e
+                    self.logger.write(['Failed to download from %s.' % url, str(e)])
             else:
                 try:
                     if not os.path.exists(url):
                         raise Exception
                     return url, True
                 except:
-                    print 'Failed to download from %s.' % url
+                    self.logger.write('Failed to download from %s.' % url)
     # }}}
 
     # {{{ fetch()
@@ -316,7 +316,7 @@ class Package(object):
     # {{{ _installWorld()
     def _installWorld(self, wldDir, objDir, obj=None):
         if obj==None:   obj=self.features[0]
-        print 'installing package %s v%s to world %s' % (obj, self.version, wldDir)
+        self.logger.write('installing package %s v%s to world %s' % (obj, self.version, wldDir))
         return self.installWorld(wldDir, objDir, obj)
     # }}}
 
@@ -358,6 +358,8 @@ class SystemPackage(object):
         self._setDefault('features', [self.name])
         self._setDefault('deps', {})
 
+        self._setDefault('logger', std_logger)
+
     def sig(self):
         lst = [self.name, self.version]
         return sha1(','.join(lst)).hexdigest()[0:7]
@@ -369,7 +371,7 @@ class SystemPackage(object):
         pass
 
     def _installWorld(self, wldDir):
-        print 'installing system package %s v%s to world %s' % (self.name, self.version, wldDir)
+        self.logger.write('installing system package %s v%s to world %s' % (self.name, self.version, wldDir))
         self.installWorld(wldDir)
 
 # }}}
@@ -396,36 +398,24 @@ class GNUPackage(Package):
         # autoconf
         if not os.path.exists(os.path.join(srcDir, 'configure')) and self.autoconf:
             for cmd in self.autoconf:
-                ret = subprocess.call(cmd, cwd=srcDir, env=env)
-                if not ret==0:
-                    raise Exception('Failed to execute %s' % str(cmd))
+                cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
         # configure
         cmd = self.conf_cmd
         cmd.extend(self._opt_merge_lists('conf_args'))
         cmd = self._subst_vars(cmd, vars)
 
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
-        cmd = self.make_cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(self.make_cmd, cwd=srcDir, env=env, logger=self.logger)
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
         vars = {'TGTDIR': tgtDir}
-        cmd = self.make_install_cmd
 
         env = self._commonEnv(vars)
 
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(self.make_install_cmd, cwd=srcDir, env=env, logger=self.logger)
 
         # fixes
         for fglob in self.dest_path_fixes:
@@ -473,28 +463,18 @@ class CMakePackage(Package):
         cmd = self._subst_vars(cmd, vars)
         cmd.append('../src')
 
-        print cmd
-        ret = subprocess.call(cmd, cwd=bldDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(cmd, cwd=bldDir, env=env, logger=self.logger)
 
-        cmd = self.make_cmd
-        ret = subprocess.call(cmd, cwd=bldDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(self.make_cmd, cwd=bldDir, env=env, logger=self.logger)
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
         bldDir = os.path.join(self.workDir, 'build')
         vars = {'TGTDIR': tgtDir}
-        cmd = self.make_install_cmd
 
         env = self._commonEnv(vars)
 
-        print cmd
-        ret = subprocess.call(cmd, cwd=bldDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(self.make_install_cmd, cwd=bldDir, env=env, logger=self.logger)
 
         # fixes
         for fglob in self.dest_path_fixes:
@@ -539,11 +519,7 @@ class PythonPackage(Package):
         cmd.extend(self._opt_merge_lists('build_args'))
         cmd.append(self.build_verb)
         cmd = self._subst_vars(cmd, vars)
-
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
@@ -556,11 +532,7 @@ class PythonPackage(Package):
         cmd.extend(self._opt_merge_lists('install_args'))
         cmd.append(self.install_verb)
         cmd = self._subst_vars(cmd, vars)
-
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
 # }}}
 
@@ -598,11 +570,7 @@ class WafPackage(Package):
         cmd.extend(self._opt_merge_lists('waf_args'))
         cmd.extend(self.build_verb)
         cmd = self._subst_vars(cmd, vars)
-
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
@@ -615,11 +583,6 @@ class WafPackage(Package):
         cmd.extend(self._opt_merge_lists('waf_args'))
         cmd.extend(self.install_verb)
         cmd = self._subst_vars(cmd, vars)
-
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
-
+        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 # }}}
 

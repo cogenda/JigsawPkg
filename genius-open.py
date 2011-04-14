@@ -1,4 +1,7 @@
 from jiglib.CommonPkgs import *
+from jiglib.Logger import *
+from jiglib import Settings
+Settings.mode='src'
 import os
 
 class Genius(WafPackage):
@@ -35,6 +38,13 @@ class Genius(WafPackage):
         lst = super(Genius, self).installWorld(wldDir, objDir, obj)
 
         script='''#!/bin/sh
+args=()
+for arg in "$@"
+do
+    args[$i]="$arg"
+    ((++i))
+done
+
 export PATH=${TGTDIR}/genius/bin:${TGTDIR}/bin:$PATH
 if [[ "x$LD_LIBRARY_PATH" == "x" ]]
 then
@@ -43,7 +53,8 @@ else
     export LD_LIBRARY_PATH=${TGTDIR}/lib:$LD_LIBRARY_PATH
 fi
 export GENIUS_DIR=${TGTDIR}/genius
-genius.LINUX $*
+
+exec genius.LINUX "${args[@]}"
 '''
         script = self._subst_vars(script, {'TGTDIR':wldDir})
 
@@ -64,7 +75,9 @@ class CogendaTCAD(Collection):
 
 
 if __name__=='__main__':
-    base = BaseSystem()
+    log = Logger(detail_lvl=1)
+
+    base = BaseSystem(logger=log)
 
     # Repository dir
     repoDir = os.environ.get('JIG_REPO_DIR', os.path.join(os.getcwd(), 'repo'))
@@ -79,8 +92,8 @@ if __name__=='__main__':
         if not os.path.exists(d):
             os.makedirs(d)
 
-    repo = Repository(repoDir, tmpDir=bldDir)
-    tcad = CogendaTCAD(repo, base)
+    repo = Repository(repoDir, tmpDir=bldDir, logger=log)
+    tcad = CogendaTCAD(repo, base, logger=log)
     tcad.build()
 
     tcad.install(instDir)

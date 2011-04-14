@@ -1,8 +1,9 @@
 from JigsawPkg import *
 from Packages import *
 from Util import *
+from Logger import *
 
-import os, os.path, shutil, glob, subprocess, tempfile
+import os, os.path, shutil, glob, tempfile
 try:
     from hashlib import sha1
 except:
@@ -238,29 +239,17 @@ class QScintilla(GNUPackage):
         _fix_pro('QT_INSTALL_DATA',         os.path.join(tgtDir, 'share/qt4'))
 
         # configure
-        cmd = ['qmake']
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        cmd_n_log(['qmake'], cwd=srcDir, env=env, logger=self.logger)
 
-        cmd = self.make_cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
+        # make
+        cmd_n_log(self.make_cmd, cwd=srcDir, env=env, logger=self.logger)
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src', 'Qt4')
         vars = {'TGTDIR': tgtDir}
         env = self._commonEnv(vars)
 
-        cmd = self.make_install_cmd
-
-        print cmd
-        ret = subprocess.call(cmd, cwd=srcDir, env=env)
-        if not ret==0:
-            raise Exception('Failed to execute %s' % str(cmd))
-
+        cmd_n_log(self.make_install_cmd, cwd=srcDir, env=env, logger=self.logger)
 # }}}
 
 # {{{ PyQt
@@ -348,10 +337,8 @@ echo $LD_LIBRARY_PATH
 ''' % (envsh, arch)
 
         writeFile(tmpdir, 'printenv.sh', str, 0755)
-        output = subprocess.Popen(os.path.join(tmpdir,'printenv.sh'),
-                                  cwd=tmpdir,
-                                  stdout=subprocess.PIPE).communicate()[0]
-        lines = output.split('\n')
+        lines = cmd_n_log(os.path.join(tmpdir,'printenv.sh'),
+                           cwd=tmpdir, logger=self.logger)
         for i,(name,var) in enumerate([('PATH', 'BINDIR'),
                                        ('LIBRARY_PATH', 'LIBDIR'),
                                        ('LD_LIBRARY_PATH', 'LDLIBDIR')]):
@@ -416,10 +403,8 @@ echo $LD_LIBRARY_PATH
 ''' % (envsh, arch)
 
         writeFile(tmpdir, 'printenv.sh', str, 0755)
-        output = subprocess.Popen(os.path.join(tmpdir,'printenv.sh'),
-                                  cwd=tmpdir,
-                                  stdout=subprocess.PIPE).communicate()[0]
-        lines = output.split('\n')
+        lines = cmd_n_log(os.path.join(tmpdir,'printenv.sh'),
+                           cwd=tmpdir, logger=self.logger)
         for i,(name,var) in enumerate([('INCLUDE', 'INCDIR'),
                                        ('LIBRARY_PATH', 'LIBDIR'),
                                        ('LD_LIBRARY_PATH', 'LDLIBDIR')]):
@@ -483,22 +468,20 @@ echo $LD_LIBRARY_PATH
         libs = self.libFileList()
 
         tmpdir = tempfile.mkdtemp()
-        print 'Combining libraries %s in %s' % (str(libs), tmpdir)
+        self.logger.write('Combining libraries %s in %s' % (str(libs), tmpdir))
         for lib in libs:
-            cmd = ['ar', 'x', lib]
-            ret = subprocess.call(cmd, cwd=tmpdir)
-            if not ret==0: raise Exception
+            cmd_n_log(['ar', 'x', lib], cwd=tmpdir, logger=self.logger)
 
         objs = os.listdir(tmpdir)
 
         cmd = ['ar', 'rcs', tflib]
         cmd.extend(objs)
-        ret = subprocess.call(cmd, cwd=tmpdir)
-        if not ret==0: raise Exception
+        cmd_n_log(cmd, cwd=tmpdir, logger=self.logger)
+
         shutil.rmtree(tmpdir)
 
         os.rename(tflib, flib)
-        print 'Combined library saved as %s' % flib
+        self.logger.write('Combined library saved as %s' % flib)
 
 # }}}
 
@@ -519,9 +502,9 @@ class Petsc(GNUPackage):
                 ]
     conf_args_solver_append = [
                 '--download-superlu=1',
-                '--download-hypre=1',
                 ]
     conf_args_solver_mpi_append = [
+                '--download-hypre=1',
                 '--download-mumps=1',
                 '--download-parmetis=1',
                 '--download-superlu_dist=1',
