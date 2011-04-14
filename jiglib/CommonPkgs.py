@@ -117,7 +117,7 @@ class VTK(CMakePackage):
                  '-DCMAKE_CXX_FLAGS:STRING=-O3 -DNDEBUG -fPIC'
                 ]
     conf_cmd = ['cmake']
-    prereqs_src = ['cmake']
+    prereqs_src = ['cmake', 'sys:libX11-devel', 'sys:mesa-libGL-devel', 'sys:libXt-devel']
 
     optionList = ['Qt']
     prereqs_Qt_append = ['Qt-redist']
@@ -325,6 +325,7 @@ class IntelCompiler(SystemPackage):
         self.LIBDIR = None
         self.LDLIBDIR = None
         self.LIBEXT = '.a'
+        self._setDefault('logger', std_logger)
 
         self.found = os.path.exists(envsh)
 
@@ -388,6 +389,7 @@ class MKL(Package):
         self.SCALAPACK = kwargs.get('scalapack', True)
         self.singleLib = kwargs.get('singleLib', True)
         self.LIBEXT = 'a'
+        self._setDefault('logger', std_logger)
 
         self.fileSingleLib = 'libmkl.a'
 
