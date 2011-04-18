@@ -20,7 +20,8 @@ GCC compilers (gcc, g++ and gfortran) must be installed.
 To use it, please take the following steps:
  1. Unpack the tarball, and enter the directory.
  2. Run the script:
-        python genius-open.py
+        ./jigsaw Cogenda.genius-open build
+        ./jigsaw Cogenda.genius-open install $HOME/cogenda
     This will install Genius to $HOME/cogenda/genius, and the repository 
     is located in the current directory.
 
@@ -32,9 +33,19 @@ After the installation is completed, one can run genius by
         $HOME/cogenda/genius/bin/genius -i pn2d.inp
 
 
-To use repo and install locations other than the defaults, one can set
-the following environment variables before running the script.
+The syntax of the jigsaw command-line is
+usage:
+    jigsaw.py [options] <collection> build
+    jigsaw.py [options] <collection> install <dest dir>
+
+options:
+  -h, --help      show this help message and exit
+  --repo=REPODIR  Repository directory.
+  --build=BLDDIR  Temporary directory for building.
+  -v, --verbose
+
+The repo and build locations can be set with the following environment
+variables as well
  JIG_REPO_DIR       location of the repository (e.g. /usr/local/cogenda/repo)
  JIG_BLD_DIR        temporary directory for building packages
- JIG_INSTALL_DIR    target directory where packages are installed
  
