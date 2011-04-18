@@ -137,15 +137,10 @@ class World(object):
         self.logger = kwargs.get('logger', std_logger)
 
     def addPackage(self, package):
-        def _doAdd(package):
-            if not isinstance(package, Package):
-                return
-            if not self.packages.has_key(package.sig()):
-                self.packages[package.sig()] = (package, False) # not installed yet.
-            for _, dep in package.deps.iteritems():
-                _doAdd(dep)
-                
-        _doAdd(package)
+        if not isinstance(package, Package):
+            return
+        if not self.packages.has_key(package.sig()):
+            self.packages[package.sig()] = (package, False) # not installed yet.
 
     def make(self):
         '''make world, if any requested packages aren't installed yet,
@@ -178,7 +173,7 @@ class World(object):
                 if isinstance(dep, Package):
                     _requestDep(dep)
         # }}}
-        
+
         for _,(package, installed) in self.packages.iteritems():
             _available(package)
             for f in package.features:
@@ -194,7 +189,6 @@ class World(object):
                 to_install[package].append(req)
             else:
                 to_install[package] = [req]
-
 
         for package, features in to_install.iteritems():
             if package.features[0] in features:

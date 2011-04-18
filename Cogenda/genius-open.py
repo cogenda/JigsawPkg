@@ -1,18 +1,18 @@
+__all__=['CogendaTCAD']
+
 from jiglib.CommonPkgs import *
 from jiglib.Logger import *
-from jiglib import Settings
-Settings.mode='src'
 import os
 
 class Genius(WafPackage):
     name = 'Genius'
     version = '20110401'
+    prereqs = ['petsc-redist']
     prereqs_src = ['petsc', 'cgnslib', 'vtk']
     src_url = ['http://github.com/cogenda/Genius-TCAD-Open/tarball/20110405',
                '/home/public/software/TCAD/genius-20110401-open.tar.bz2']
 
     def __init__(self, *args, **kwargs):
-
         super(Genius, self).__init__(*args, **kwargs)
 
         petsc = self.deps['petsc']
@@ -73,28 +73,4 @@ class CogendaTCAD(Collection):
 
     genius = Genius(_petsc_gcc, _cgnslib, _vtk)
 
-
-if __name__=='__main__':
-    log = Logger(detail_lvl=1)
-
-    base = BaseSystem(logger=log)
-
-    # Repository dir
-    repoDir = os.environ.get('JIG_REPO_DIR', os.path.join(os.getcwd(), 'repo'))
-
-    # temp dir for building
-    bldDir  = os.environ.get('JIG_BLD_DIR',  '/tmp/jigsaw')
-
-    # Install to this dir
-    instDir = os.environ.get('JIG_INSTALL_DIR', os.path.expanduser('~/cogenda'))
-
-    for d in [repoDir, bldDir, instDir]:
-        if not os.path.exists(d):
-            os.makedirs(d)
-
-    repo = Repository(repoDir, tmpDir=bldDir, logger=log)
-    tcad = CogendaTCAD(repo, base, logger=log)
-    tcad.build()
-
-    tcad.install(instDir)
 
