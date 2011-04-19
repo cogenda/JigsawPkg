@@ -318,7 +318,7 @@ class Scipy(PythonPackage):
 class IntelCompiler(SystemPackage):
     name = 'icc'
     version = '1.0'
-    features = ['icc', 'icc-redist']
+    featureList = ['icc', 'icc-redist']
 
     def __init__(self, envsh, arch='intel64', **kwargs):
         self.BINDIR = None
@@ -376,7 +376,7 @@ echo $LD_LIBRARY_PATH
 class MKL(Package):
     name = 'mkl'
     version = '1.0'
-    features = ['mkl', 'mkl-redist']
+    featureList = ['mkl', 'mkl-redist']
 
     def __init__(self, envsh, arch='', **kwargs):
         self.INCDIR = None

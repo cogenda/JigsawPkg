@@ -90,7 +90,7 @@ if options.verbose: detail_lvl=100
 log = Logger(detail_lvl=detail_lvl)
 
 base = BaseSystem(logger=log)
-repo = Repository(options.repoDir, tmpDir=options.bldDir)
+repo = Repository(options.repoDir, tmpDir=options.bldDir, logger=log)
 
 coll = Coll(repo, base, logger=log)
 
