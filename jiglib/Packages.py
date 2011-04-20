@@ -294,7 +294,7 @@ class Package(object):
     # {{{ installWorld()
     def installWorld(self, wldDir, objDir, obj):
         if objDir==None:
-            raise Error
+            raise Exception('Object not found in %s' % objDir)
 
         fileList = []
         for path, dirs, files in os.walk(objDir):

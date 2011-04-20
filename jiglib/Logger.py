@@ -63,11 +63,11 @@ def cmd_n_log(cmd, splitline=True, logger=None, input=None, **kwargs):
         if logger==None: return
         logger.write(msg, detail)
 
+    _write_log('running %s' % cmd)
     p = subprocess.Popen(cmd, 
                          stdin =subprocess.PIPE,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, **kwargs)
-    _write_log('running %s' % cmd)
     out, err = p.communicate(input)
     _write_log('retcode=%d' % p.returncode, 2)
 
