@@ -46,11 +46,10 @@ class Qt4(GNUPackage):
                  '-plugin-sql-sqlite',
                  '-system-zlib', '-qt-gif',
                  '-no-declarative', '-no-declarative-debug',
-                 '-no-script', '-no-scripttools',
                  '-no-phonon', '-no-phonon-backend',
                  '-no-multimedia', '-no-audio-backend',
                  '-no-qt3support', '-no-dbus',
-                 '-no-svg', '-no-webkit']
+                 ]
     dest_path_fixes = ['lib/pkgconfig/*.pc', 'lib/*.prl', 'lib/*.la']
 
     def install(self, tgtDir, obj):
