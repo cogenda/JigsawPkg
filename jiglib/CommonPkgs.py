@@ -140,6 +140,36 @@ class Python(GNUPackage):
     optionList = ['shared']
     conf_args_shared_append = ['--enable-shared']
 
+    # patches
+    patches = [
+    # {{{ python-config missed -L
+r'''--- a/Misc/python-config.in  (revision 82663)
++++ b/Misc/python-config.in  (working copy)
+@@ -49,8 +49,21 @@ for opt in opt_flags:
+         # add the prefix/lib/pythonX.Y/config dir, but only if there is no
+         # shared library in prefix/lib/.
+         if opt == '--ldflags':
++            # Provide the location where the Python library is installed.
++            # We always provide it, because Python may have been installed
++            # at a non-standard location.
+             if not getvar('Py_ENABLE_SHARED'):
+-                libs.insert(0, '-L' + getvar('LIBPL'))
++                # There is no shared library in prefix/lib.  The static
++                # library is in prefix/lib/pythonX.Y/config.
++                #
++                # Note that we cannot use getvar('LIBPL') like we used to,
++                # because it provides the location at build time, which might
++                # be different from the actual location at runtime.
++                libdir = sysconfig.get_python_lib(standard_lib=True) + '/config'
++            else:
++                # The Python shared library is installed in prefix/lib.
++                libdir = sysconfig.PREFIX + '/lib'
++            libs.insert(0, '-L' + libdir)
+             libs.extend(getvar('LINKFORSHARED').split())
+         print ' '.join(libs)
+''', # }}}
+    ]
+
     def installWorld(self, wldDir, objDir, obj):
         lst = super(Python, self).installWorld(wldDir, objDir, obj)
 
@@ -311,6 +341,28 @@ class Scipy(PythonPackage):
     install_cmd = ['python', 'setupscons.py', 'scons']
     env = {'CPPFLAGS':  '-I/usr/include/atlas',
            'LDFLAGS':   '-L/usr/lib64/atlas'}
+# }}}
+
+# {{{ matplotlib
+class Matplotlib(PythonPackage):
+    name = 'python-matplotlib'
+    version = '1.0.0'
+    src_url = ['/home/public/software/python/matplotlib-1.0.0.tar.gz',
+               'http://sourceforge.net/projects/matplotlib/files/matplotlib/matplotlib-1.0/matplotlib-1.0.0.tar.gz',
+              ]
+    prereqs = ['python', 'python-numpy']
+    prereqs_src = ['sys:libpng-devel', 'sys:freetype-devel']
+    env = {'LDFLAGS': '-L${TGTDIR}/lib'}
+# }}}
+
+# {{{ pyparsing
+class PyParsing(PythonPackage):
+    name = 'python-pyparsing'
+    version = '1.5.5'
+    src_url = ['/home/public/software/python/pyparsing-1.5.5.tar.gz',
+               'http://sourceforge.net/projects/pyparsing/files/pyparsing/pyparsing-1.5.5/pyparsing-1.5.5.tar.gz',
+              ]
+    prereqs = ['python']
 # }}}
 
 # {{{ IntelCompiler
@@ -722,5 +774,4 @@ r'''--- a/config/BuildSystem/config/framework.py      2011-04-09 23:21:04.000000
     # }}}
 
 # }}}
-
 
