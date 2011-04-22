@@ -401,11 +401,11 @@ class GNUPackage(Package):
                 cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
         # configure
-        cmd = self.conf_cmd
-        cmd.extend(self._opt_merge_lists('conf_args'))
-        cmd = self._subst_vars(cmd, vars)
-
-        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
+        if self.conf_cmd:
+            cmd = self.conf_cmd
+            cmd.extend(self._opt_merge_lists('conf_args'))
+            cmd = self._subst_vars(cmd, vars)
+            cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
         cmd_n_log(self.make_cmd, cwd=srcDir, env=env, logger=self.logger)
 

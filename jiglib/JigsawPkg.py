@@ -335,7 +335,7 @@ class Collection(object):
     def install(self, wldDir):
         world = World(self.repo, wldDir)
 
-        if not self.checkSysDeps(): return
+        if not self.checkSysDeps(): return False
 
         for p in self.systemPkgs():
             p._installWorld(wldDir)
@@ -356,14 +356,14 @@ fi
         script = substVars(script, {'TGTDIR':wldDir})
 
         writeFile(wldDir, 'bin/setenv.sh', script, mode=0755)
-
-
+        return True
 
     def build(self):
-        if not self.checkSysDeps(): return
+        if not self.checkSysDeps(): return False
 
         for p in self.packages():
             self.repo.addPackage(p)
+        return True
 # }}}
 
 

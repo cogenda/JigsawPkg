@@ -96,10 +96,12 @@ coll = Coll(repo, base, logger=log)
 
 if verb=='build':
   log.write('Start building collection %s' %collName)
-  coll.build()
+  if not coll.build():
+    sys.exit(-1)
   log.write('Finished building collection %s' %collName)
 else:
   log.write('Start installing collection %s' %collName)
-  coll.install(dest_dir)
+  if not coll.install(dest_dir):
+    sys.exit(-1)
   log.write('Finished installing collection %s' %collName)
 
