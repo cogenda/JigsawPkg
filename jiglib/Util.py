@@ -1,7 +1,9 @@
-__all__=['writeFile', 'copyX', 'subTxtFile', 'substVars', 'version2int']
+__all__=['writeFile', 'copyX', 'subTxtFile', 'substVars', 'version2int', 'getGitRepoVersion', 'cmd_n_log']
 
 import sys, os, os.path, shutil, tempfile, glob
 import re, string
+import subprocess
+from Logger import *
 
 # {{{ copyX
 def copyX(src, dst):
@@ -132,5 +134,41 @@ if not hasattr(os.path, 'relpath'):
             return os.path.join(*rel_list)
         
     os.path.relpath = relpath
+# }}}
+
+# {{{ cmd_n_log
+def cmd_n_log(cmd, splitline=True, logger=None, input=None, **kwargs):
+
+    def _write_log(msg, detail=0):
+        if logger==None: return
+        logger.write(msg, detail)
+
+    _write_log('running %s' % cmd)
+    p = subprocess.Popen(cmd,
+                         stdin =subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, **kwargs)
+    out, err = p.communicate(input)
+    _write_log('retcode=%d' % p.returncode, 2)
+
+    _write_log(['------output-----', out], 2)
+    if len(err):
+        _write_log(['------error------', err], 2)
+    _write_log('-----------------', 2)
+
+    if not p.returncode==0:
+        raise Exception()
+
+    if splitline:
+        return out.split('\n')
+    else:
+        return out
+# }}}
+
+# {{{ getGitRepoVersion()
+def getGitRepoVersion(url, ref):
+    output = cmd_n_log(['git', 'ls-remote', url, ref])
+    rev = output[0]
+    return rev[0:7]
 # }}}
 

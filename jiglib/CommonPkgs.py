@@ -1,3 +1,5 @@
+__all__=[]
+
 from JigsawPkg import *
 from Packages import *
 from Util import *
@@ -23,6 +25,8 @@ class CGNSLib(GNUPackage):
 
     optionList = ['pic']
     env_pic_append = {'CFLAGS': '-fPIC'}
+
+__all__.append('CGNSLib')
 # }}}
 
 # {{{ Qt4
@@ -67,6 +71,7 @@ class Qt4(GNUPackage):
         else:
             super(Qt4, self).install(tgtDir, obj)
 
+__all__.append('Qt4')
 # }}}
 
 # {{{ CMake
@@ -79,6 +84,7 @@ class CMake(GNUPackage):
               ]
     conf_args = ['--prefix=${TGTDIR}']
 
+__all__.append('CMake')
 # }}}
 
 # {{{ VTK
@@ -126,6 +132,8 @@ class VTK(CMakePackage):
                  '-DDESIRED_QT_VERSION:STRING=4',
                  '-DQT_QMAKE_EXECUTABLE:FILEPATH=${TGTDIR}/bin/qmake',
                 ]
+
+__all__.append('VTK')
 # }}}
 
 # {{{ Python
@@ -167,9 +175,11 @@ r'''--- a/Misc/python-config.in  (revision 82663)
 +            libs.insert(0, '-L' + libdir)
              libs.extend(getvar('LINKFORSHARED').split())
          print ' '.join(libs)
-''', # }}}
+''',
+    # }}}
     ]
 
+    # {{{ installWorld()
     def installWorld(self, wldDir, objDir, obj):
         lst = super(Python, self).installWorld(wldDir, objDir, obj)
 
@@ -193,7 +203,9 @@ exec %s "${args[@]}"
             writeFile(wldDir, os.path.join('bin',binname), script, mode=0755)
 
         return lst
+    # }}}
 
+__all__.append('Python')
 # }}}
 
 # {{{ SIP
@@ -213,6 +225,8 @@ class SIP(GNUPackage):
                 ]
     prereqs = ['python']
     dest_path_fixes = ['lib/python2.7/site-packages/sipconfig.py']
+
+__all__.append('SIP')
 # }}}
 
 # {{{ Qwt
@@ -241,6 +255,8 @@ class Qwt(GNUPackage):
                    os.path.join(tgtDir, 'lib', 'qt4', 'plugins'))
 
         super(Qwt, self).build(tgtDir)
+
+__all__.append('Qwt')
 # }}}
 
 # {{{ QScintilla
@@ -279,6 +295,8 @@ class QScintilla(GNUPackage):
         env = self._commonEnv(vars)
 
         cmd_n_log(self.make_install_cmd, cwd=srcDir, env=env, logger=self.logger)
+
+__all__.append('QScintilla')
 # }}}
 
 # {{{ PyQt
@@ -298,6 +316,7 @@ class PyQt(GNUPackage):
     prereqs = ['python-sip', 'Qt-redist']
     prereqs_src = ['Qt']
 
+__all__.append('PyQt')
 # }}}
 
 # {{{ numscons
@@ -309,6 +328,7 @@ class numscons(PythonPackage):
               ]
     prereqs = ['python']
 
+__all__.append('numscons')
 # }}}
 
 # {{{ Numpy
@@ -325,6 +345,8 @@ class Numpy(PythonPackage):
     install_cmd = ['python', 'setupscons.py', 'scons']
     env = {'CPPFLAGS':  '-I/usr/include/atlas',
            'LDFLAGS':   '-L/usr/lib64/atlas'}
+
+__all__.append('Numpy')
 # }}}
 
 # {{{ Scipy
@@ -341,6 +363,8 @@ class Scipy(PythonPackage):
     install_cmd = ['python', 'setupscons.py', 'scons']
     env = {'CPPFLAGS':  '-I/usr/include/atlas',
            'LDFLAGS':   '-L/usr/lib64/atlas'}
+
+__all__.append('Scipy')
 # }}}
 
 # {{{ matplotlib
@@ -353,6 +377,8 @@ class Matplotlib(PythonPackage):
     prereqs = ['python', 'python-numpy']
     prereqs_src = ['sys:libpng-devel', 'sys:freetype-devel']
     env = {'LDFLAGS': '-L${TGTDIR}/lib'}
+
+__all__.append('Matplotlib')
 # }}}
 
 # {{{ pyparsing
@@ -363,6 +389,8 @@ class PyParsing(PythonPackage):
                'http://sourceforge.net/projects/pyparsing/files/pyparsing/pyparsing-1.5.5/pyparsing-1.5.5.tar.gz',
               ]
     prereqs = ['python']
+
+__all__.append('PyParsing')
 # }}}
 
 # {{{ IntelCompiler
@@ -421,6 +449,7 @@ echo $LD_LIBRARY_PATH
             libs.append(self._search_lib([self.LIBDIR], f))
         return libs
 
+__all__.append('IntelCompiler')
 # }}}
 
 # {{{ MKL Library
@@ -536,6 +565,7 @@ echo $LD_LIBRARY_PATH
         os.rename(tflib, flib)
         self.logger.write('Combined library saved as %s' % flib)
 
+__all__.append('MKL')
 # }}}
 
 # {{{ Petsc
@@ -773,5 +803,6 @@ r'''--- a/config/BuildSystem/config/framework.py      2011-04-09 23:21:04.000000
 
     # }}}
 
+__all__.append('Petsc')
 # }}}
 
