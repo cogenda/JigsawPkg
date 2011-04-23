@@ -4,9 +4,10 @@ import sys
 import os
 from jiglib.Logger import *
 from jiglib.JigsawPkg import *
+from jiglib import Settings
 
 # {{{ loadCollection()
-def loadCollection(name):
+def loadCollection(name, opts=None):
     import os.path
     import imp
 
@@ -21,6 +22,7 @@ def loadCollection(name):
     fp, pathname, desc = imp.find_module(name, [path])
     coll = None
     try:
+        Settings.collectionOpts = opts
         mod = imp.load_module(name, fp, pathname, desc)
         for c in mod.__all__:
             cls = mod.__dict__[c]
@@ -55,6 +57,8 @@ def parseOptions():
 
     parser.add_option('-v', '--verbose', default=False,
                       action='store_true', dest='verbose')
+    parser.add_option('-o', action='append', dest='collOpts',
+                      help='Options for the initializing the collection.')
 
     options, args = parser.parse_args()
 
@@ -79,7 +83,7 @@ if verb=='build':
 else:
   Settings.mode='redist'
 
-Coll = loadCollection(collName)
+Coll = loadCollection(collName, opts=options.collOpts)
 if Coll==None:
   print 'Could not load the collection %s' % collName
   sys.exit(-1)
