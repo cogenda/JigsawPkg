@@ -186,11 +186,17 @@ r'''--- a/Misc/python-config.in  (revision 82663)
         vername = '.'.join(self.version.split('.')[:2])
 
         for binname in ['python', 'python%s'%vername, 'python-config', 'python%s-config'%vername]:
-            path = os.path.join(objDir, 'bin', binname)
             tgtPath = os.path.join(wldDir, 'bin', binname)
+            path = os.path.join(objDir, 'bin', binname)
+            if len(os.path.commonprefix([tgtPath, path]))>0:
+                path = os.path.relpath(os.path.join(objDir, 'bin', binname),
+                                       os.path.join(wldDir, 'bin'))
+                path = '$DIR/'+path
             os.unlink(tgtPath)
             script='''#!/bin/sh
-export PYTHONHOME=%s
+DIR=$(dirname ${BASH_SOURCE[0]})
+source $DIR/setenv.sh
+export PYTHONHOME=$BASEDIR
 
 args=()
 for arg in "$@"
@@ -199,7 +205,7 @@ do
     ((++i))
 done
 exec %s "${args[@]}"
-''' % (wldDir, path)
+''' % path
             writeFile(wldDir, os.path.join('bin',binname), script, mode=0755)
 
         return lst

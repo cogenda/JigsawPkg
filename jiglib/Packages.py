@@ -308,7 +308,8 @@ class Package(object):
                 tgt=os.path.join(tgtPath,file)
                 if os.path.lexists(tgt):
                     os.unlink(tgt)
-                os.symlink(os.path.join(path,file), tgt)
+                lnk = os.path.relpath(os.path.join(path,file), tgtPath)
+                os.symlink(lnk, tgt)
                 fileList.append(tgt)
         return fileList
     # }}}

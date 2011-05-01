@@ -55,6 +55,8 @@ def parseOptions():
     parser.add_option('--build',  action='store', dest='bldDir',
                       default=bldDir, help='Temporary directory for building.')
 
+    parser.add_option('--reloc', action='store', dest='reloc', default=None,
+                      help='relocate the repo to this place.')
     parser.add_option('-v', '--verbose', default=False,
                       action='store_true', dest='verbose')
     parser.add_option('-o', action='append', dest='collOpts',
@@ -96,7 +98,7 @@ log = Logger(detail_lvl=detail_lvl)
 base = BaseSystem(logger=log)
 repo = Repository(options.repoDir, tmpDir=options.bldDir, logger=log)
 
-coll = Coll(repo, base, logger=log)
+coll = Coll(repo, base, logger=log, reloc=options.reloc)
 
 if verb=='build':
   log.write('Start building collection %s' %collName)

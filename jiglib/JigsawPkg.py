@@ -135,6 +135,7 @@ class World(object):
         self.fileList = []
 
         self.logger = kwargs.get('logger', std_logger)
+        self.reloc = kwargs.get('reloc', None)
 
     def addPackage(self, package):
         if not isinstance(package, Package):
@@ -197,6 +198,12 @@ class World(object):
                 self.logger.write('activating %s' % feature)
                 oDir = self.repo.getObjPath(feature, sig=package.sig())
                 if isinstance(package, Package):
+                    if self.reloc:
+                        # relocate the object to another dir first
+                        relocDir = os.path.join(self.reloc, os.path.split(oDir)[-1])
+                        if not os.path.exists(relocDir):
+                            copyX(oDir, relocDir)
+                        oDir=relocDir
                     lst = package._installWorld(self.rootDir, oDir, feature)
                     self.fileList.extend(lst)
                 elif isinstance(package, SystemPackage):
@@ -205,6 +212,25 @@ class World(object):
                     raise TypeError
             self.packages[package.sig()] = (package,True)
 
+        # {{{ write setenv script
+        script='''#!/bin/sh
+BASEDIR=$(cd `dirname ${BASH_SOURCE[0]}`/.. && pwd)
+
+concat_path() {
+    # prepend_path paths1 paths2
+    if [[ "x$2" == "x" ]]
+    then
+        echo "$1"
+    else
+        echo "$1:$2"
+    fi
+}
+
+export PATH=$(concat_path $BASEDIR/bin $PATH)
+export LD_LIBRARY_PATH=$(concat_path $BASEDIR/lib $LD_LIBRARY_PATH)
+'''
+        writeFile(self.rootDir, 'bin/setenv.sh', script, mode=0755)
+        # }}}
 
 
     def unmake(self):
@@ -299,6 +325,7 @@ class Collection(object):
         self.baseSys = baseSys
         
         self.logger = kwargs.get('logger', std_logger)
+        self.reloc = kwargs.get('reloc', None)
 
     def packages(self):
         lst = []
@@ -333,7 +360,7 @@ class Collection(object):
         return True
 
     def install(self, wldDir):
-        world = World(self.repo, wldDir)
+        world = World(self.repo, wldDir, reloc=self.reloc)
 
         if not self.checkSysDeps(): return False
 
@@ -343,19 +370,6 @@ class Collection(object):
             world.addPackage(p)
         world.make()
 
-        # write setenv script
-        script='''#!/bin/sh
-export PATH=${TGTDIR}/bin:$PATH
-if [[ "x$LD_LIBRARY_PATH" == "x" ]]
-then
-    export LD_LIBRARY_PATH=${TGTDIR}/lib
-else
-    export LD_LIBRARY_PATH=${TGTDIR}/lib:$LD_LIBRARY_PATH
-fi
-'''
-        script = substVars(script, {'TGTDIR':wldDir})
-
-        writeFile(wldDir, 'bin/setenv.sh', script, mode=0755)
         return True
 
     def build(self):
