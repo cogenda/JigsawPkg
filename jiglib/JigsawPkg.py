@@ -228,6 +228,14 @@ concat_path() {
 
 export PATH=$(concat_path $BASEDIR/bin $PATH)
 export LD_LIBRARY_PATH=$(concat_path $BASEDIR/lib $LD_LIBRARY_PATH)
+
+for i in $BASEDIR/etc/profile.d/*.sh ; do
+    if [ -r "$i" ]; then
+        . $i
+    fi
+done
+
+unset i
 '''
         writeFile(self.rootDir, 'bin/setenv.sh', script, mode=0755)
         # }}}

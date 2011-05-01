@@ -813,12 +813,44 @@ r'''--- a/config/BuildSystem/config/framework.py      2011-04-09 23:21:04.000000
         # petsc-redist
         if 'mpich2_epel' in self.options:
             patterns = [('/usr/lib64/mpich2/lib', 'lib', '*.so*'),
+                        ('/usr/bin', 'bin', 'mpi*'),
+                        ('/usr/bin', 'bin', 'mpd*'),
                         ]
             for srcDir,dst,pat in patterns:
                 dstDir = os.path.join(tgtDir, dst)
                 for path in glob.glob('%s/%s' % (srcDir,pat)):
                     tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
                     copyX(path, tgtPath)
+
+            # {{{ script
+            script='''#!/bin/sh
+prepare_mpi() {
+  MPDTRACE_EXEC=mpdtrace
+  MPD_EXEC=mpd
+
+  $MPDTRACE_EXEC > /dev/null
+  if [[ $? -ne 0 ]]
+  then
+    echo "Info: mpd is not running. Trying to start mpd..."
+
+    # Create .mpd.conf if necessary
+    if [ ! -f $HOME/.mpd.conf ]
+    then
+      echo "MPD_SECRETWORD=cogenda228998791" > $HOME/.mpd.conf
+      chmod 600 $HOME/.mpd.conf
+    fi
+    $MPD_EXEC --daemon
+    sleep 2
+    if [[ $? -ne 0 ]]
+    then
+      echo "Error: can not start mpd."
+      exit 1
+    fi
+  fi
+}
+'''
+            # }}}
+            writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mpich2.sh'), script, mode=0755)
 
     # }}}
 
