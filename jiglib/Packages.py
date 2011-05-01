@@ -162,13 +162,20 @@ class Package(object):
     # }}}
 
     # {{{ patch
-    def patch(self):
+    def patch(self, tgtDir):
         patches = self._opt_merge_lists('patches')
         for i,patch in enumerate(patches):
             self.logger.write_begin('Applying patch %d' % (i+1))
             if isinstance(patch, tuple):
                 patch, mandatory = patch
             else: mandatory = False
+
+            if patch.startswith('/') or len(patch)<256:
+                # probably a patch file
+                patch = self._subst_vars(patch, {'TGTDIR': tgtDir})
+                if os.path.exists(patch):
+                    patch = open(patch).read()
+
             ret = cmd_n_log(['patch', '-p1'],
                             input=patch,
                             cwd=os.path.join(self.workDir, 'src'),
@@ -181,8 +188,8 @@ class Package(object):
                 self.logger.write_end('ok')
     # }}}
 
-    def _patch(self):
-        self.patch()
+    def _patch(self, tgtDir):
+        self.patch(tgtDir)
 
     def build(self, tgtDir):
         pass

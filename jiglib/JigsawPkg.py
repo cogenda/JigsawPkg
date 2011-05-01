@@ -90,7 +90,7 @@ class Repository(object):
 
             # prepare package
             package._fetch()
-            package._patch()
+            package._patch(tgtDir)
 
             package._build(tgtDir)
             writeFile(package.workDir, 'finished', '1') # mark it as finished
@@ -242,6 +242,9 @@ unset i
 
 
     def unmake(self):
+        fenv = os.path.join(self.rootDir, 'bin', 'setenv.sh')
+        os.unlink(fenv)
+
         for f in self.fileList:
             os.unlink(f)
         self.fileList=[]
