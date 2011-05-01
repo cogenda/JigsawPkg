@@ -177,6 +177,19 @@ r'''--- a/Misc/python-config.in  (revision 82663)
          print ' '.join(libs)
 ''',
     # }}}
+    # {{{ missing RTLD def
+r'''--- a/Lib/plat-linux2/DLFCN.py    2004-07-18 14:16:08.000000000 +0800
++++ b/Lib/plat-linux2/DLFCN.py    2011-04-26 13:26:54.000000000 +0800
+@@ -78,6 +78,7 @@
+ RTLD_NOW = 0x00002
+ RTLD_BINDING_MASK = 0x3
+ RTLD_NOLOAD = 0x00004
++RTLD_DEEPBIND = 0x00008
+ RTLD_GLOBAL = 0x00100
+ RTLD_LOCAL = 0
+ RTLD_NODELETE = 0x01000
+''',
+    # }}}
     ]
 
     # {{{ installWorld()
