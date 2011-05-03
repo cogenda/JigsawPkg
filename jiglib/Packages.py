@@ -410,7 +410,7 @@ class GNUPackage(Package):
 
         # configure
         if self.conf_cmd:
-            cmd = self.conf_cmd
+            cmd = list(self.conf_cmd)
             cmd.extend(self._opt_merge_lists('conf_args'))
             cmd = self._subst_vars(cmd, vars)
             cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
@@ -466,7 +466,7 @@ class CMakePackage(Package):
         env = self._commonEnv(vars)
 
         # configure
-        cmd = self.conf_cmd
+        cmd = list(self.conf_cmd)
         cmd.extend(self._opt_merge_lists('conf_args'))
         cmd = self._subst_vars(cmd, vars)
         cmd.append('../src')
@@ -523,7 +523,7 @@ class PythonPackage(Package):
         env = self._commonEnv(vars)
 
         # build
-        cmd = self.build_cmd
+        cmd = list(self.build_cmd)
         cmd.extend(self._opt_merge_lists('build_args'))
         cmd.append(self.build_verb)
         cmd = self._subst_vars(cmd, vars)
@@ -536,7 +536,7 @@ class PythonPackage(Package):
         env = self._commonEnv(vars)
 
         # install
-        cmd = self.install_cmd
+        cmd = list(self.install_cmd)
         cmd.extend(self._opt_merge_lists('install_args'))
         cmd.append(self.install_verb)
         cmd = self._subst_vars(cmd, vars)
@@ -574,7 +574,7 @@ class WafPackage(Package):
         env = self._commonEnv(vars)
 
         # build
-        cmd = self.waf_cmd
+        cmd = list(self.waf_cmd)
         cmd.extend(self._opt_merge_lists('waf_args'))
         cmd.extend(self.build_verb)
         cmd = self._subst_vars(cmd, vars)
@@ -587,7 +587,7 @@ class WafPackage(Package):
         env = self._commonEnv(vars)
 
         # install
-        cmd = self.waf_cmd
+        cmd = list(self.waf_cmd)
         cmd.extend(self._opt_merge_lists('waf_args'))
         cmd.extend(self.install_verb)
         cmd = self._subst_vars(cmd, vars)
