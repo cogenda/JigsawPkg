@@ -852,6 +852,13 @@ prepare_mpi() {
             # }}}
             writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mpich2.sh'), script, mode=0755)
 
+            patterns = ['bin/*.py']
+            for pat in patterns:
+                for path in glob.glob(os.path.join(tgtDir,pat)):
+                    if os.path.islink(path): continue
+                    subTxtFile(path, 'python2.4', 'python')
+
+
     # }}}
 
 __all__.append('Petsc')
