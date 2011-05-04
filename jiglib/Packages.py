@@ -228,6 +228,9 @@ class Package(object):
 
             if url.startswith('ssh+git') or \
                url.startswith('http') and url.endswith('.git'):
+                repoDir=os.path.join(self.workDir, 'repo')
+                if os.path.exists(repoDir):
+                    shutil.rmtree(repoDir)
                 try:
                     ret = cmd_n_log(['git', 'clone', url, 'repo'],
                                     cwd=self.workDir,
@@ -236,12 +239,11 @@ class Package(object):
                         return '', False
                     if arg:
                         cmd_n_log(['git', 'checkout', arg],
-                                  cwd=os.path.join(self.workDir, 'repo'),
-                                  logger=self.logger)
+                                  cwd=repoDir, logger=self.logger)
                     src_file = os.path.join(self.workDir, 'repo')
                     return src_file, False
                 except:
-                    self.logger.write('Failed to download from %s.' % url)
+                    self.logger.write('Failed to checkout from %s.' % url)
             elif url.startswith('http'):
                 try:
                     fname = os.path.basename(urlparse.urlsplit(url)[2])
