@@ -1,8 +1,9 @@
 __all__=['CogendaTCAD']
 
+from jiglib.JigsawPkg import *
+from jiglib.Packages import *
 from jiglib.CommonPkgs import *
 from jiglib.Logger import *
-from Cogenda.CogendaPkgs import *
 import os
 
 class Genius(WafPackage):
