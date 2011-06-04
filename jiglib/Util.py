@@ -157,7 +157,7 @@ def cmd_n_log(cmd, splitline=True, logger=None, input=None, **kwargs):
     _write_log('-----------------', 2)
 
     if not p.returncode==0:
-        raise Exception()
+        raise Exception('command exited with non-zero status code')
 
     if splitline:
         return out.split('\n')
