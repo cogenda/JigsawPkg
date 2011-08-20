@@ -206,7 +206,7 @@ r'''--- a/Lib/plat-linux2/DLFCN.py    2004-07-18 14:16:08.000000000 +0800
                                        os.path.join(wldDir, 'bin'))
                 path = '$DIR/'+path
             os.unlink(tgtPath)
-            script='''#!/bin/sh
+            script='''#!/bin/bash
 DIR=$(dirname ${BASH_SOURCE[0]})
 source $DIR/setenv.sh
 export PYTHONHOME=$BASEDIR
@@ -428,7 +428,7 @@ class IntelCompiler(SystemPackage):
         self.found = os.path.exists(envsh)
 
         tmpdir = tempfile.mkdtemp()
-        str ='''#!/bin/sh
+        str ='''#!/bin/bash
 source %s %s
 echo $PATH
 echo $LIBRARY_PATH
@@ -496,7 +496,7 @@ class MKL(Package):
             raise Exception
 
         tmpdir = tempfile.mkdtemp()
-        str ='''#!/bin/sh
+        str ='''#!/bin/bash
 source %s %s
 echo $INCLUDE
 echo $LIBRARY_PATH
@@ -823,7 +823,7 @@ r'''--- a/config/BuildSystem/config/framework.py      2011-04-09 23:21:04.000000
                     copyX(path, tgtPath)
 
             # {{{ script
-            script='''#!/bin/sh
+            script='''#!/bin/bash
 prepare_mpi() {
   MPDTRACE_EXEC=mpdtrace
   MPD_EXEC=mpd

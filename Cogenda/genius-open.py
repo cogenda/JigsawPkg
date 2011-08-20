@@ -39,7 +39,7 @@ class Genius(WafPackage):
     def installWorld(self, wldDir, objDir, obj):
         lst = super(Genius, self).installWorld(wldDir, objDir, obj)
 
-        script='''#!/bin/sh
+        script='''#!/bin/bash
 args=()
 for arg in "$@"
 do
