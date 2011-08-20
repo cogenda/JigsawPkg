@@ -525,11 +525,12 @@ class PythonPackage(Package):
         env = self._commonEnv(vars)
 
         # build
-        cmd = list(self.build_cmd)
-        cmd.extend(self._opt_merge_lists('build_args'))
-        cmd.append(self.build_verb)
-        cmd = self._subst_vars(cmd, vars)
-        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
+        if self.build_cmd:
+            cmd = list(self.build_cmd)
+            cmd.extend(self._opt_merge_lists('build_args'))
+            cmd.append(self.build_verb)
+            cmd = self._subst_vars(cmd, vars)
+            cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
@@ -538,11 +539,12 @@ class PythonPackage(Package):
         env = self._commonEnv(vars)
 
         # install
-        cmd = list(self.install_cmd)
-        cmd.extend(self._opt_merge_lists('install_args'))
-        cmd.append(self.install_verb)
-        cmd = self._subst_vars(cmd, vars)
-        cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
+        if self.install_cmd:
+            cmd = list(self.install_cmd)
+            cmd.extend(self._opt_merge_lists('install_args'))
+            cmd.append(self.install_verb)
+            cmd = self._subst_vars(cmd, vars)
+            cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
 # }}}
 

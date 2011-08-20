@@ -181,6 +181,7 @@ class World(object):
                 requests[f] = True
             _requestDep(package)
 
+        to_install_seq = []
         to_install = {}
         for req in requests.keys():
             if not avails.has_key(req):
@@ -189,9 +190,11 @@ class World(object):
             if to_install.has_key(package):
                 to_install[package].append(req)
             else:
+                to_install_seq.append(package)
                 to_install[package] = [req]
 
-        for package, features in to_install.iteritems():
+        for package in to_install_seq:
+            features = to_install[package]
             if package.features[0] in features:
                 features = [package.features[0]] # first feature contains everything
             for feature in features:
