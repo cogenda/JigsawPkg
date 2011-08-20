@@ -412,6 +412,66 @@ class PyParsing(PythonPackage):
 __all__.append('PyParsing')
 # }}}
 
+# {{{ setuptools
+class SetupTools(Package):
+    name = 'python-setuptools'
+    version = '0.6c11'
+    src_url = ['/home/public/software/python/setuptools-0.6c11-py2.7.egg',
+               'http://pypi.python.org/packages/2.7/s/setuptools/setuptools-0.6c11-py2.7.egg',
+              ]
+    prereqs = ['python']
+
+    def fetch(self):
+        if self.src_url==None:
+            return
+
+        src_file, _ = self._getFile(self.src_url)
+        shutil.copy(src_file, self.workDir)
+
+    def install(self, tgtDir, obj):
+        vars = {'TGTDIR': tgtDir}
+        env = self._commonEnv(vars)
+
+        ret = cmd_n_log(['sh', 'setuptools-0.6c11-py2.7.egg'],
+                        cwd=self.workDir, env=env,
+                        logger=self.logger)
+
+
+__all__.append('SetupTools')
+# }}}
+
+# {{{ openopt
+class OpenOpt(PythonPackage):
+    name = 'python-OpenOpt'
+    version = '0.34'
+    src_url = ['/home/public/software/python/OpenOpt.34.zip',
+               'http://openopt.org/images/3/33/OpenOpt.zip',
+              ]
+    prereqs = ['python', 'python-numpy', 'python-setuptools']
+    build_cmd = None
+
+    def installWorld(self, wldDir, objDir, obj):
+        fileList = super(OpenOpt, self).installWorld(wldDir, objDir, obj)
+
+        fnPth = os.path.join(wldDir, 'lib', 'python2.7', 'site-packages', 'easy-install.pth')
+        fin = open(fnPth, 'r')
+        lines = fin.readlines()
+        fin.close()
+        if os.path.islink(fnPth):
+            os.unlink(fnPth)
+
+        fout = open(fnPth, 'w')
+        for l in lines[:-1]:
+            fout.write(l)
+        fout.write('./openopt-0.34-py2.7.egg\n')
+        fout.write(lines[-1])
+        fout.close()
+
+        return fileList
+
+__all__.append('OpenOpt')
+# }}}
+
 # {{{ IntelCompiler
 class IntelCompiler(SystemPackage):
     name = 'icc'
