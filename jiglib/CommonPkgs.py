@@ -23,8 +23,11 @@ class CGNSLib(GNUPackage):
 
     prereqs_src = ['sys:zlib-devel']
 
-    optionList = ['pic']
+    optionList = ['pic', '32bit']
     env_pic_append = {'CFLAGS': '-fPIC'}
+
+    conf_args_32bit_delete = ['--enable-64bit']
+    env_32bit_append = {'CFLAGS': '-m32'}
 
 __all__.append('CGNSLib')
 # }}}
@@ -54,6 +57,9 @@ class Qt4(GNUPackage):
                  '-no-multimedia', '-no-audio-backend',
                  '-no-qt3support', '-no-dbus',
                  ]
+    optionList = ['32bit']
+    conf_args_32bit_append = ['-platform', 'linux-g++-32']
+
     dest_path_fixes = ['lib/pkgconfig/*.pc', 'lib/*.prl', 'lib/*.la']
 
     def install(self, tgtDir, obj):
@@ -84,6 +90,9 @@ class CMake(GNUPackage):
               ]
     conf_args = ['--prefix=${TGTDIR}']
 
+    optionList = ['32bit']
+    env_32bit_append = {'CFLAGS': '-m32', 'CXXFLAGS': '-m32'}
+
 __all__.append('CMake')
 # }}}
 
@@ -96,7 +105,7 @@ class VTK(CMakePackage):
                'http://www.vtk.org/files/release/v5.4/vtk-5.4.2.tar.gz',
               ]
     conf_args = [
-                 '-DCMAKE_BUILD_TYPE:STRING=Release',
+                 '-DCMAKE_BUILD_TYPE:STRING=RELEASE',
                  '-DCMAKE_INSTALL_PREFIX:PATH=${TGTDIR}',
                  '-DCMAKE_INCLUDE_PATH:PATH=${TGTDIR}/include',
                  '-DCMAKE_LIBRARY_PATH:PATH=${TGTDIR}/lib',
@@ -124,13 +133,18 @@ class VTK(CMakePackage):
     conf_cmd = ['cmake']
     prereqs_src = ['cmake', 'sys:libX11-devel', 'sys:mesa-libGL-devel', 'sys:libXt-devel']
 
-    optionList = ['Qt']
+    optionList = ['Qt', '32bit']
     prereqs_Qt_append = ['Qt-redist']
     prereqs_src_Qt_append = ['Qt']
     conf_args_Qt_append = [
                  '-DVTK_USE_QVTK:BOOL=ON',
                  '-DDESIRED_QT_VERSION:STRING=4',
                  '-DQT_QMAKE_EXECUTABLE:FILEPATH=${TGTDIR}/bin/qmake',
+                ]
+
+    conf_args_32bit_append = [
+                 '-DCMAKE_C_FLAGS:STRING=-m32 -O3 -DNDEBUG -fPIC',
+                 '-DCMAKE_CXX_FLAGS:STRING=-m32 -O3 -DNDEBUG -fPIC'
                 ]
 
 __all__.append('VTK')
@@ -145,8 +159,10 @@ class Python(GNUPackage):
                'http://www.python.org/ftp/python/2.7.1/Python-2.7.1.tar.bz2'
               ]
     conf_args = ['--prefix=${TGTDIR}']
-    optionList = ['shared']
+    optionList = ['shared', '32bit']
     conf_args_shared_append = ['--enable-shared']
+
+    env_32bit_append = {'CFLAGS': '-m32', 'LDFLAGS': '-m32'}
 
     # patches
     patches = [
@@ -245,6 +261,9 @@ class SIP(GNUPackage):
     prereqs = ['python']
     dest_path_fixes = ['lib/python2.7/site-packages/sipconfig.py']
 
+    optionList = ['32bit']
+    conf_args_32bit_append = ['--platform=linux-g++-32']
+
 __all__.append('SIP')
 # }}}
 
@@ -334,6 +353,9 @@ class PyQt(GNUPackage):
                 ]
     prereqs = ['python-sip', 'Qt-redist']
     prereqs_src = ['Qt']
+
+    optionList = ['32bit']
+    conf_args_32bit_append = ['LFLAGS+=-m32']
 
 __all__.append('PyQt')
 # }}}
@@ -537,12 +559,16 @@ class MKL(Package):
     version = '1.0'
     featureList = ['mkl', 'mkl-redist']
 
-    def __init__(self, envsh, arch='', **kwargs):
+    def __init__(self, envsh, arch='intel64', **kwargs):
         self.INCDIR = None
         self.LIBDIR = None
         self.LDLIBDIR = None
         self.LIBPREFIX = kwargs.get('libPrefix', 'libmkl')
-        self.INTERFACE = kwargs.get('interface', 'lp64')
+        self.arch=arch
+        if arch=='intel64':
+            self.INTERFACE = kwargs.get('interface', 'lp64')
+        else:
+            self.INTERFACE = ''
         self.THREAD    = kwargs.get('thread', 'sequential')
         self.MPI       = kwargs.get('mpi', 'intelmpi')
         self.SCALAPACK = kwargs.get('scalapack', True)
@@ -557,11 +583,11 @@ class MKL(Package):
 
         tmpdir = tempfile.mkdtemp()
         str ='''#!/bin/bash
-source %s %s
+source %s
 echo $INCLUDE
 echo $LIBRARY_PATH
 echo $LD_LIBRARY_PATH
-''' % (envsh, arch)
+''' % envsh
 
         writeFile(tmpdir, 'printenv.sh', str, 0755)
         lines = cmd_n_log(os.path.join(tmpdir,'printenv.sh'),
@@ -600,15 +626,27 @@ echo $LD_LIBRARY_PATH
                 'LIBEXT':    self.LIBEXT}
 
         libs = []
-        if self.SCALAPACK:
-            libs.append('${LIBPREFIX}_scalapack_${INTERFACE}.${LIBEXT}')
-        libs.extend([
-            '${LIBPREFIX}_solver_${INTERFACE}_${THREAD}.${LIBEXT}',
-            '${LIBPREFIX}_intel_${INTERFACE}.${LIBEXT}',
-            '${LIBPREFIX}_${THREAD}.${LIBEXT}',
-            '${LIBPREFIX}_core.${LIBEXT}',
-            '${LIBPREFIX}_blacs_${MPI}_${INTERFACE}.${LIBEXT}',
-               ])
+        if self.arch=='intel64':
+            if self.SCALAPACK:
+                libs.append('${LIBPREFIX}_scalapack_${INTERFACE}.${LIBEXT}')
+            libs.extend([
+                '${LIBPREFIX}_solver_${INTERFACE}_${THREAD}.${LIBEXT}',
+                '${LIBPREFIX}_intel_${INTERFACE}.${LIBEXT}',
+                '${LIBPREFIX}_${THREAD}.${LIBEXT}',
+                '${LIBPREFIX}_core.${LIBEXT}',
+                '${LIBPREFIX}_blacs_${MPI}_${INTERFACE}.${LIBEXT}',
+                   ])
+        else:
+            if self.SCALAPACK:
+                libs.append('${LIBPREFIX}_scalapack_core.${LIBEXT}')
+            libs.extend([
+                '${LIBPREFIX}_solver_${THREAD}.${LIBEXT}',
+                '${LIBPREFIX}_intel.${LIBEXT}',
+                '${LIBPREFIX}_${THREAD}.${LIBEXT}',
+                '${LIBPREFIX}_core.${LIBEXT}',
+                '${LIBPREFIX}_blacs_${MPI}.${LIBEXT}',
+                   ])
+
         libs = substVars(libs, vars)
 
         lst = []
