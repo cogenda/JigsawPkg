@@ -9,17 +9,17 @@ from jiglib import Settings
 # {{{ loadCollection()
 def loadCollection(name, opts=None):
     import os.path
-    import imp
+    import imp, sys
 
     parts = name.split('.')
     path = parts[0:-1]
     name = parts[-1]
 
-
     dir, _ = os.path.split(os.path.abspath(__file__))
-    path = os.path.join(dir, *path)
+    paths = [os.path.join(dir, *path)]
+    paths.extend(sys.path)
 
-    fp, pathname, desc = imp.find_module(name, [path])
+    fp, pathname, desc = imp.find_module(name, paths)
     coll = None
     try:
         Settings.collectionOpts = opts
@@ -85,7 +85,15 @@ if verb=='build':
 else:
   Settings.mode='redist'
 
-Coll = loadCollection(collName, opts=options.collOpts)
+collOpts={}
+for x in options.collOpts:
+  if ':' in x:
+    k,v = x.split(':')
+    collOpts[k]=v
+  else:
+    collOpts[x]=True
+
+Coll = loadCollection(collName, opts=collOpts)
 if Coll==None:
   print 'Could not load the collection %s' % collName
   sys.exit(-1)

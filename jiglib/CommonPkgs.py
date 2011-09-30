@@ -685,6 +685,173 @@ echo $LD_LIBRARY_PATH
 __all__.append('MKL')
 # }}}
 
+# {{{ MPICH2
+class MPICH2(GNUPackage):
+    name = 'mpich2'
+    featureList = ['mpich2', 'mpich2-redist']
+    version='1.4.1-p1'
+    src_url = ['/home/public/software/cluster/mpich2-1.4.1p1.tar.gz',
+               'http://www.mcs.anl.gov/research/projects/mpich2/downloads/tarballs/1.4.1p1/mpich2-1.4.1p1.tar.gz',
+              ]
+    make_cmd = ['gmake']
+
+    env = {'CFLAGS': '-fPIC', 'CXXFLAGS': '-fPIC', 'FFLAGS': '-fPIC'}
+    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--with-pm=mpd', '--with-device=ch3:nemesis']
+    optionList = ['32bit']
+
+    env_32bit_append = {'CFLAGS': '-m32 -fPIC', 'CXXFLAGS': '-m32 -fPIC',
+                        'FFLAGS': '-m32 -fPIC', 'LDFLAGS': '-m32'}
+
+    # {{{ install()
+    def install(self, tgtDir, obj):
+        if obj=='mpich2':
+            return super(MPICH2, self).install(tgtDir, obj)
+        elif obj=='mpich2-redist':
+            # mpich2-redist
+
+            binDir = os.path.join(self.workDir, 'src', 'src', 'pm', 'mpd')
+            patterns = [(binDir, 'bin', 'mpi*.py*'),
+                        (binDir, 'bin', 'mpd*.py*'),
+                        ]
+
+            for srcDir,dst,pat in patterns:
+                dstDir = os.path.join(tgtDir, dst)
+                for path in glob.glob('%s/%s' % (srcDir,pat)):
+                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
+                    copyX(path, tgtPath)
+
+            patterns = [(binDir, 'bin', 'mpi*.py*'),
+                        (binDir, 'bin', 'mpd*.py*'),
+                        ]
+            for srcDir,dst,pat in patterns:
+                dstDir = os.path.join(tgtDir, dst)
+                for path in glob.glob('%s/%s' % (srcDir,pat)):
+                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
+                    ldst = os.path.join(dstDir, os.path.splitext(os.path.basename(path))[0])
+                    lsrc = os.path.basename(tgtPath)
+                    os.symlink(lsrc, ldst)
+            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun.py'))
+            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun'))
+
+            # {{{ script
+            script='''#!/bin/bash
+prepare_mpi() {
+  MPDTRACE_EXEC=mpdtrace
+  MPD_EXEC=mpd
+
+  $MPDTRACE_EXEC > /dev/null
+  if [[ $? -ne 0 ]]
+  then
+    echo "Info: mpd is not running. Trying to start mpd..."
+
+    # Create .mpd.conf if necessary
+    if [ ! -f $HOME/.mpd.conf ]
+    then
+      echo "MPD_SECRETWORD=cogenda228998791" > $HOME/.mpd.conf
+      chmod 600 $HOME/.mpd.conf
+    fi
+    $MPD_EXEC --daemon
+    sleep 2
+    if [[ $? -ne 0 ]]
+    then
+      echo "Error: can not start mpd."
+      exit 1
+    fi
+  fi
+}
+'''
+            # }}}
+            writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mpich2.sh'), script, mode=0755)
+    # }}}
+
+__all__.append('MPICH2')
+# }}}
+
+# {{{ MVAPICH2
+class MVAPICH2(GNUPackage):
+    name = 'mvapich2'
+    featureList = ['mvapich2', 'mvapich2-redist']
+    version='1.7.2-rc2'
+    src_url = ['/home/public/software/cluster/mvapich2-1.7rc2.tgz',
+                'http://mvapich.cse.ohio-state.edu/download/mvapich2/mvapich2-1.7rc2.tgz',
+              ]
+    make_cmd = ['gmake']
+    
+    env = {'CFLAGS': '-fPIC', 'CXXFLAGS': '-fPIC', 'FFLAGS': '-fPIC'}
+    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--with-pm=mpd']
+    optionList = ['32bit', 'smp', 'ib']
+
+    env_32bit_append = {'CFLAGS': '-m32 -fPIC', 'CXXFLAGS': '-m32 -fPIC',
+                        'FFLAGS': '-m32 -fPIC', 'LDFLAGS': '-m32'}
+
+    conf_args_smp_append = ['--with-device=ch3:nemesis']
+    conf_args_ib_append = ['--with-device=ch3:nemesis:ib,tcp']
+
+    # {{{ install()
+    def install(self, tgtDir, obj):
+        if obj=='mvapich2':
+            return super(MVAPICH2, self).install(tgtDir, obj)
+        elif obj=='mvapich2-redist':
+            # mvapchi2-redist
+
+            binDir = os.path.join(self.workDir, 'src', 'src', 'pm', 'mpd')
+            patterns = [(binDir, 'bin', 'mpi*.py*'),
+                        (binDir, 'bin', 'mpd*.py*'),
+                        ]
+
+            for srcDir,dst,pat in patterns:
+                dstDir = os.path.join(tgtDir, dst)
+                for path in glob.glob('%s/%s' % (srcDir,pat)):
+                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
+                    copyX(path, tgtPath)
+
+            patterns = [(binDir, 'bin', 'mpi*.py*'),
+                        (binDir, 'bin', 'mpd*.py*'),
+                        ]
+            for srcDir,dst,pat in patterns:
+                dstDir = os.path.join(tgtDir, dst)
+                for path in glob.glob('%s/%s' % (srcDir,pat)):
+                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
+                    ldst = os.path.join(dstDir, os.path.splitext(os.path.basename(path))[0])
+                    lsrc = os.path.basename(tgtPath)
+                    os.symlink(lsrc, ldst)
+            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun.py'))
+            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun'))
+
+            # {{{ script
+            script='''#!/bin/bash
+prepare_mpi() {
+  MPDTRACE_EXEC=mpdtrace
+  MPD_EXEC=mpd
+
+  $MPDTRACE_EXEC > /dev/null
+  if [[ $? -ne 0 ]]
+  then
+    echo "Info: mpd is not running. Trying to start mpd..."
+
+    # Create .mpd.conf if necessary
+    if [ ! -f $HOME/.mpd.conf ]
+    then
+      echo "MPD_SECRETWORD=cogenda228998791" > $HOME/.mpd.conf
+      chmod 600 $HOME/.mpd.conf
+    fi
+    $MPD_EXEC --daemon
+    sleep 2
+    if [[ $? -ne 0 ]]
+    then
+      echo "Error: can not start mpd."
+      exit 1
+    fi
+  fi
+}
+'''
+            # }}}
+            writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mpich2.sh'), script, mode=0755)
+    # }}}
+
+__all__.append('MVAPICH2')
+# }}}
+
 # {{{ Petsc
 class Petsc(GNUPackage):
     name = 'petsc'
@@ -748,11 +915,22 @@ class Petsc(GNUPackage):
 
     # download and compile MPICH2
     conf_args_mpich2_append =  ['--download-mpich=1',
+                                '--download-mpich-pm=mpd',
                                 '--download-mpich-device=ch3:nemesis']
 
     # epel MPICH2
     conf_args_mpich2_epel_append   = ['--with-mpi-dir=/usr']
     prereqs_src_mpich2_epel_append = ['sys:epel-release', 'sys:mpich2-devel']
+
+    # mpich2
+    conf_args_mpich2_append   = ['--with-mpi-dir=${TGTDIR}']
+    prereqs_mpich2_append = ['mpich2-redist']
+    prereqs_src_mpich2_append = ['mpich2']
+
+    # mvapchi2
+    conf_args_mvapich2_append   = ['--with-mpi-dir=${TGTDIR}']
+    prereqs_mvapich2_append = ['mvapich2-redist']
+    prereqs_src_mvapich2_append = ['mvapich2']
 
     # }}}
 
@@ -822,9 +1000,11 @@ r'''--- a/config/BuildSystem/config/framework.py      2011-04-09 23:21:04.000000
             options.append('solver')
 
         if not ( 'mpich2_epel'  in options or
+                 'mpich2_dl'    in options or
                  'mpich2'       in options or
+                 'mvapich2'     in options or
                  'nompi'        in options ):
-            options.append('mpich2') # default to download mpich2
+            options.append('mpich2_dl') # default to download mpich2
 
         if not ( 'mkl'    in options or
                  'netlib' in options ):
@@ -909,16 +1089,43 @@ r'''--- a/config/BuildSystem/config/framework.py      2011-04-09 23:21:04.000000
             super(Petsc, self).install(tgtDir, obj)
 
         # petsc-redist
-        if 'mpich2_epel' in self.options:
-            patterns = [('/usr/lib64/mpich2/lib', 'lib', '*.so*'),
-                        ('/usr/bin', 'bin', 'mpi*'),
-                        ('/usr/bin', 'bin', 'mpd*'),
-                        ]
+        if 'mpich2_epel' in self.options or \
+           'mpich2_dl' in self.options:
+
+            if 'mpich2_epel' in self.options:
+                patterns = [('/usr/lib64/mpich2/lib', 'lib', '*.so*'),
+                            ('/usr/bin', 'bin', 'mpi*.py*'),
+                            ('/usr/bin', 'bin', 'mpd*.py*'),
+                            ]
+            else:
+                binDir = '%s/petsc/%s/bin' % (self.workDir, self.arch)
+                patterns = [(binDir, 'bin', 'mpi*.py*'),
+                            (binDir, 'bin', 'mpd*.py*'),
+                            ]
+
             for srcDir,dst,pat in patterns:
                 dstDir = os.path.join(tgtDir, dst)
                 for path in glob.glob('%s/%s' % (srcDir,pat)):
                     tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
                     copyX(path, tgtPath)
+
+            # symlinks
+            if 'mpich2_epel' in self.options:
+                patterns = [('/usr/bin', 'bin', 'mpi*.py'),
+                            ('/usr/bin', 'bin', 'mpd*.py'),
+                            ]
+            else:
+                binDir = '%s/petsc/%s/bin' % (self.workDir, self.arch)
+                patterns = [(binDir, 'bin', 'mpi*.py*'),
+                            (binDir, 'bin', 'mpd*.py*'),
+                            ]
+            for srcDir,dst,pat in patterns:
+                dstDir = os.path.join(tgtDir, dst)
+                for path in glob.glob('%s/%s' % (srcDir,pat)):
+                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
+                    ldst = os.path.join(dstDir, os.path.splitext(os.path.basename(path))[0])
+                    lsrc = os.path.basename(tgtPath)
+                    os.symlink(lsrc, ldst)
 
             # {{{ script
             script='''#!/bin/bash
