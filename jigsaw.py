@@ -59,7 +59,7 @@ def parseOptions():
                       help='relocate the repo to this place.')
     parser.add_option('-v', '--verbose', default=False,
                       action='store_true', dest='verbose')
-    parser.add_option('-o', action='append', dest='collOpts',
+    parser.add_option('-o', action='append', dest='collOpts', default=[],
                       help='Options for the initializing the collection.')
 
     options, args = parser.parse_args()
