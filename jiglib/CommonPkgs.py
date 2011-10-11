@@ -36,9 +36,9 @@ __all__.append('CGNSLib')
 class Qt4(GNUPackage):
     name = 'Qt'
     featureList = ['Qt', 'Qt-redist']
-    version = '4.7.2'
-    src_url = ['/home/public/software/Qt/qt-everywhere-opensource-src-4.7.2.tar.gz',
-               'http://get.qt.nokia.com/qt/source/qt-everywhere-opensource-src-4.7.2.tar.gz'
+    version = '4.7.4'
+    src_url = ['/home/public/software/Qt/qt-everywhere-opensource-src-4.7.4.tar.gz',
+               'http://get.qt.nokia.com/qt/source/qt-everywhere-opensource-src-4.7.4.tar.gz'
               ]
     conf_args = ['-opensource', '-confirm-license',
                  '-prefix',     '${TGTDIR}',
