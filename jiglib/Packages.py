@@ -238,7 +238,7 @@ class Package(object):
                     if ret==None:
                         return '', False
                     if arg:
-                        cmd_n_log(['git', 'checkout', arg],
+                        cmd_n_log(['git', 'checkout', 'origin/%s'%arg],
                                   cwd=repoDir, logger=self.logger)
                     src_file = os.path.join(self.workDir, 'repo')
                     return src_file, False
@@ -280,7 +280,10 @@ class Package(object):
                     tf = tarfile.open(src_file)
                     tf.extractall(self.workDir)
                 else:
-                    cmd = ['tar', '-xf', src_file]
+                    if src_file.endswith('.bz2'):
+                        cmd = ['tar', '-xjf', src_file]
+                    else:
+                        cmd = ['tar', '-xzf', src_file]
                     cmd_n_log(cmd, cwd=self.workDir, logger=self.logger)
             elif zipfile.is_zipfile(src_file):
                 if hasattr(zipfile.ZipFile, 'extractall'):

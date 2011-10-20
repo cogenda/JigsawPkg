@@ -289,8 +289,8 @@ class BaseSystem(object):
         vendor, version = match.group('vendor'), match.group('version')
 
         if vendor=='CentOS' or vendor.startswith('Red Hat'):
-            if version2int(version)<5000000:
-                raise Exception('Need at least CentOS 5.0')
+            if version2int(version)<4000000:
+                raise Exception('Need at least CentOS 4.0')
             self.logger.write('Found %s %s' % (vendor, version))
         else:
             raise Exception('We do not know %s %s' % (vendor, version))

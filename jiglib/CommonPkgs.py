@@ -382,8 +382,8 @@ class Numpy(PythonPackage):
     prereqs = ['python']
     prereqs_src = ['python-numscons']
     build_args  = ['--jobs=4']
-    build_cmd   = ['python', 'setupscons.py', 'scons']
-    install_cmd = ['python', 'setupscons.py', 'scons']
+    build_cmd   = ['python', 'setupscons.py', 'scons', '--fcompiler=gfortran']
+    install_cmd = ['python', 'setupscons.py', 'scons', '--fcompiler=gfortran']
     env = {'CPPFLAGS':  '-I/usr/include/atlas',
            'LDFLAGS':   '-L/usr/lib64/atlas'}
 
@@ -400,8 +400,8 @@ class Scipy(PythonPackage):
     prereqs = ['python', 'python-numpy']
     prereqs_src = ['python-numscons']
     build_args  = ['--jobs=4']
-    build_cmd   = ['python', 'setupscons.py', 'scons']
-    install_cmd = ['python', 'setupscons.py', 'scons']
+    build_cmd   = ['python', 'setupscons.py', 'scons', '--fcompiler=gfortran']
+    install_cmd = ['python', 'setupscons.py', 'scons', '--fcompiler=gfortran']
     env = {'CPPFLAGS':  '-I/usr/include/atlas',
            'LDFLAGS':   '-L/usr/lib64/atlas'}
 
@@ -673,9 +673,13 @@ echo $LD_LIBRARY_PATH
 
         objs = os.listdir(tmpdir)
 
-        cmd = ['ar', 'rcs', tflib]
-        cmd.extend(objs)
-        cmd_n_log(cmd, cwd=tmpdir, logger=self.logger)
+        while len(objs)>0:
+            tlst = objs[:5000]
+            cmd = ['ar', 'rcs', tflib]
+            cmd.extend(tlst)
+            cmd_n_log(cmd, cwd=tmpdir, logger=self.logger)
+
+            objs = objs[5000:]
 
         shutil.rmtree(tmpdir)
 
