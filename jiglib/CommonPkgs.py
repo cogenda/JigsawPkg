@@ -1490,3 +1490,40 @@ prepare_mpi() {
 __all__.append('Petsc32')
 # }}}
 
+# {{{ LibSVM
+class LibSVM(GNUPackage):
+    name = 'libsvm'
+    version = '3.1'
+    src_url = ['/home/public/software/science/libsvm-3.1.tar.gz',
+               'http://www.csie.ntu.edu.tw/~cjlin/libsvm/libsvm-3.1.tar.gz'
+              ]
+    autoconf = None
+    conf_cmd = None
+    make_cmd = ['gmake', 'all', 'lib']
+
+    optionList = ['32bit']
+
+    def build(self, tgtDir):
+        srcDir = os.path.join(self.workDir, 'src')
+
+        mkFile = os.path.join(srcDir, 'Makefile')
+        if '32bit' in self.options:
+            subTxtFile(mkFile, 'CFLAGS\s*=.*', 'CFLAGS = -Wall -Wconversion -O3 -fPIC -m32 ', mode='re')
+        else:
+            subTxtFile(mkFile, 'CFLAGS\s*=.*', 'CFLAGS = -Wall -Wconversion -O3 -fPIC ', mode='re')
+
+        super(LibSVM, self).build(tgtDir)
+
+    def install(self, tgtDir, obj):
+        srcDir = os.path.join(self.workDir, 'src')
+        self.build(tgtDir)
+        for f in ['svm-train', 'svm-predict', 'svm-scale']:
+            path    = os.path.join(self.workDir, 'src', f)
+            tgtPath = os.path.join(tgtDir, 'bin', f)
+            copyX(path, tgtPath)
+        copyX(os.path.join(self.workDir, 'src', 'libsvm.so.2'),
+              os.path.join(tgtDir, 'lib', 'libsvm.so'))
+
+__all__.append('LibSVM')
+# }}}
+
