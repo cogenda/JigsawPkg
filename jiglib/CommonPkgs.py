@@ -1540,3 +1540,31 @@ class LibSVM(GNUPackage):
 __all__.append('LibSVM')
 # }}}
 
+# {{{ KLayout
+class KLayout(GNUPackage):
+    name = 'klayout'
+    version = '0.21.13'
+    src_url = ['/home/public/software/EDA/klayout-0.21.13.tar.gz',
+               'http://www.klayout.de/klayout-0.21.13.tar.gz',
+              ]
+    prereqs = ['Qt-redist']
+    prereqs_src = ['Qt']
+
+    autoconf = None
+    conf_cmd = None
+    make_cmd = ['./build.sh', '-qt', '${TGTDIR}', '-bin', '${TGTDIR}/bin', '-option', '-j4']
+    make_install_cmd = None
+
+    def __init__(self, *args, **kwargs):
+        options = kwargs.get('options', [])
+
+        if '32bit' in options:
+            self.make_cmd.extend(['-platform','linux-32-gcc-release'])
+        else:
+            self.make_cmd.extend(['-platform','linux-64-gcc-release'])
+
+        super(KLayout, self).__init__(*args, **kwargs)
+
+__all__.append('KLayout')
+# }}}
+

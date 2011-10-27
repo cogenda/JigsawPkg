@@ -420,7 +420,10 @@ class GNUPackage(Package):
             cmd = self._subst_vars(cmd, vars)
             cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
-        cmd_n_log(self.make_cmd, cwd=srcDir, env=env, logger=self.logger)
+        if self.make_cmd:
+            cmd = list(self.make_cmd)
+            cmd = self._subst_vars(cmd, vars)
+            cmd_n_log(cmd, cwd=srcDir, env=env, logger=self.logger)
 
     def install(self, tgtDir, obj):
         srcDir = os.path.join(self.workDir, 'src')
@@ -428,7 +431,8 @@ class GNUPackage(Package):
 
         env = self._commonEnv(vars)
 
-        cmd_n_log(self.make_install_cmd, cwd=srcDir, env=env, logger=self.logger)
+        if self.make_install_cmd:
+            cmd_n_log(self.make_install_cmd, cwd=srcDir, env=env, logger=self.logger)
 
         # fixes
         for fglob in self.dest_path_fixes:
