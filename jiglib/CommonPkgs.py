@@ -57,8 +57,9 @@ class Qt4(GNUPackage):
                  '-no-multimedia', '-no-audio-backend',
                  '-no-qt3support', '-no-dbus',
                  ]
-    optionList = ['32bit']
+    optionList = ['32bit', 'qt3']
     conf_args_32bit_append = ['-platform', 'linux-g++-32']
+    conf_args_qt3_delete = ['-no-qt3support']
 
     dest_path_fixes = ['lib/pkgconfig/*.pc', 'lib/*.prl', 'lib/*.la']
 
@@ -700,8 +701,10 @@ class MPICH2(GNUPackage):
     make_cmd = ['gmake']
 
     env = {'CFLAGS': '-fPIC', 'CXXFLAGS': '-fPIC', 'FFLAGS': '-fPIC'}
-    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--with-pm=mpd', '--with-device=ch3:nemesis']
-    optionList = ['32bit']
+    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--enable-smpcoll', '--with-pm=mpd', '--with-device=ch3:nemesis']
+    optionList = ['shared', '32bit']
+
+    conf_args_shared_append = ['--enable-shared', '--disable-rpath']
 
     env_32bit_append = {'CFLAGS': '-m32 -fPIC', 'CXXFLAGS': '-m32 -fPIC',
                         'FFLAGS': '-m32 -fPIC', 'LDFLAGS': '-m32'}
@@ -717,6 +720,10 @@ class MPICH2(GNUPackage):
             patterns = [(binDir, 'bin', 'mpi*.py*'),
                         (binDir, 'bin', 'mpd*.py*'),
                         ]
+
+            libDir = os.path.join(self.workDir, 'src', 'lib')
+            if 'shared' in self.options:
+                patterns.append((libDir, 'lib', '*.so*'))
 
             for srcDir,dst,pat in patterns:
                 dstDir = os.path.join(tgtDir, dst)
@@ -776,14 +783,16 @@ class MVAPICH2(GNUPackage):
     name = 'mvapich2'
     featureList = ['mvapich2', 'mvapich2-redist']
     version='1.7.2-rc2'
-    src_url = ['/home/public/software/cluster/mvapich2-1.7rc2.tgz',
-                'http://mvapich.cse.ohio-state.edu/download/mvapich2/mvapich2-1.7rc2.tgz',
+    src_url = ['/home/public/software/cluster/mvapich2-1.7.tgz',
+                'http://mvapich.cse.ohio-state.edu/download/mvapich2/mvapich2-1.7.tgz',
               ]
     make_cmd = ['gmake']
     
     env = {'CFLAGS': '-fPIC', 'CXXFLAGS': '-fPIC', 'FFLAGS': '-fPIC'}
     conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--with-pm=mpd']
-    optionList = ['32bit', 'smp', 'ib']
+    optionList = ['shared', '32bit', 'smp', 'ib']
+
+    conf_args_shared_append = ['--enable-shared', '--disable-rpath']
 
     env_32bit_append = {'CFLAGS': '-m32 -fPIC', 'CXXFLAGS': '-m32 -fPIC',
                         'FFLAGS': '-m32 -fPIC', 'LDFLAGS': '-m32'}
@@ -802,6 +811,10 @@ class MVAPICH2(GNUPackage):
             patterns = [(binDir, 'bin', 'mpi*.py*'),
                         (binDir, 'bin', 'mpd*.py*'),
                         ]
+
+            libDir = os.path.join(self.workDir, 'src', 'lib')
+            if 'shared' in self.options:
+                patterns.append((libDir, 'lib', '*.so*'))
 
             for srcDir,dst,pat in patterns:
                 dstDir = os.path.join(tgtDir, dst)
