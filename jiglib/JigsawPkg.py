@@ -157,6 +157,7 @@ class World(object):
 
         avails   = {}
         requests = {}
+        requests_seq = []
 
         # {{{ available & request
         def _available(package):
@@ -166,24 +167,28 @@ class World(object):
                 _available(dep)
         
         def _requestDep(package):
-            for f in package.prereqs:
-                if f.startswith('sys:'):
-                    continue # sys requirement
-                requests[f] = True
             for _,dep in package.deps.iteritems():
                 if isinstance(dep, Package):
                     _requestDep(dep)
+            for f in package.prereqs:
+                if f.startswith('sys:'):
+                    continue # sys requirement
+                if not requests.has_key(f):
+                    requests[f] = True
+                    requests_seq.append(f)
         # }}}
 
         for _,(package, installed) in self.packages.iteritems():
             _available(package)
-            for f in package.features:
-                requests[f] = True
             _requestDep(package)
+            for f in package.features:
+                if not requests.has_key(f):
+                    requests[f] = True
+                    requests_seq.append(f)
 
         to_install_seq = []
         to_install = {}
-        for req in requests.keys():
+        for req in requests_seq:
             if not avails.has_key(req):
                 raise Exception('Prerequisite %s not met', req)
             package = avails[req]
