@@ -782,7 +782,7 @@ __all__.append('MPICH2')
 class MVAPICH2(GNUPackage):
     name = 'mvapich2'
     featureList = ['mvapich2', 'mvapich2-redist']
-    version='1.7.2-rc2'
+    version='1.7.2'
     src_url = ['/home/public/software/cluster/mvapich2-1.7.tgz',
                 'http://mvapich.cse.ohio-state.edu/download/mvapich2/mvapich2-1.7.tgz',
               ]
@@ -799,6 +799,22 @@ class MVAPICH2(GNUPackage):
 
     conf_args_smp_append = ['--with-device=ch3:nemesis']
     conf_args_ib_append = ['--with-device=ch3:nemesis:ib,tcp']
+
+    patches = [
+# {{{ 1. Export LD_LIBRARY_PATH so that osu_benchmark can find the shared libraries
+'''--- a/Makefile.in     2011-11-21 14:15:18.000000000 +0800
++++ b/Makefile.in     2011-11-21 14:24:24.000000000 +0800
+@@ -332,7 +332,7 @@
+ 	@if [ "@BUILD_TVDLL@" = "yes" ] ; then \\
+ 	( cd src/mpi/debugger && $(MAKE) ./libtvmpich2.@SHLIB_EXT@ ) ; fi
+ 	@if [ -s lib/pkglist.new ] ; then mv -f lib/pkglist.new lib/pkglist ; fi
+-	( { test -d osu_benchmarks || mkdir osu_benchmarks; } && cd osu_benchmarks && $(master_top_srcdir)/osu_benchmarks/configure --prefix=@prefix@ CC=../bin/mpicc CPPFLAGS='-I ../include' LDFLAGS='-L ../lib -Wl,-rpath=@prefix@/lib' && $(MAKE) )
++	( { test -d osu_benchmarks || mkdir osu_benchmarks; } && cd osu_benchmarks && $(master_top_srcdir)/osu_benchmarks/configure --prefix=@prefix@ CC=../bin/mpicc CPPFLAGS='-I ../include' LDFLAGS='-L ../lib -Wl,-rpath=@prefix@/lib' LD_LIBRARY_PATH=../lib:$(LD_LIBRARY_PATH) && $(MAKE) )
+ 	@echo "Make completed"
+ 
+ # The test on lib/.mpich2created lets us delete the local lib directory
+''', # }}}
+    ]
 
     # {{{ install()
     def install(self, tgtDir, obj):
@@ -1552,7 +1568,8 @@ class KLayout(GNUPackage):
 
     autoconf = None
     conf_cmd = None
-    make_cmd = ['./build.sh', '-qt', '${TGTDIR}', '-bin', '${TGTDIR}/bin', '-option', '-j4']
+    make_cmd = ['./build.sh', '-qt', '${TGTDIR}', '-bin', '${TGTDIR}/bin']
+    #make_cmd = ['./build.sh', '-qt', '${TGTDIR}', '-bin', '${TGTDIR}/bin', '-option', '-j2']
     make_install_cmd = None
 
     def __init__(self, *args, **kwargs):
