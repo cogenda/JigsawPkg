@@ -238,8 +238,13 @@ class Package(object):
                     if ret==None:
                         return '', False
                     if arg:
-                        cmd_n_log(['git', 'checkout', 'origin/%s'%arg],
-                                  cwd=repoDir, logger=self.logger)
+                        ret = cmd_n_log(['git', 'tag', '-l', arg], cwd=repoDir, logger=self.logger)
+                        if len(ret)>0: # this is a tag
+                            cmd_n_log(['git', 'checkout', '-b', 'build-%s'%arg, arg],
+                                      cwd=repoDir, logger=self.logger)
+                        else:  # not a tag, should be a branch
+                            cmd_n_log(['git', 'checkout', '-b', 'build-%s'%arg, 'origin/%s'%arg],
+                                      cwd=repoDir, logger=self.logger)
                     src_file = os.path.join(self.workDir, 'repo')
                     return src_file, False
                 except:
