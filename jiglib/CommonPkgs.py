@@ -782,14 +782,14 @@ __all__.append('MPICH2')
 class MVAPICH2(GNUPackage):
     name = 'mvapich2'
     featureList = ['mvapich2', 'mvapich2-redist']
-    version='1.7.2'
+    version='1.7.2-1'
     src_url = ['/home/public/software/cluster/mvapich2-1.7.tgz',
                 'http://mvapich.cse.ohio-state.edu/download/mvapich2/mvapich2-1.7.tgz',
               ]
     make_cmd = ['gmake']
     
     env = {'CFLAGS': '-fPIC', 'CXXFLAGS': '-fPIC', 'FFLAGS': '-fPIC'}
-    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--with-pm=mpd']
+    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--with-pm=hydra']
     optionList = ['shared', '32bit', 'smp', 'ib']
 
     conf_args_shared_append = ['--enable-shared', '--disable-rpath']
@@ -823,9 +823,11 @@ class MVAPICH2(GNUPackage):
         elif obj=='mvapich2-redist':
             # mvapchi2-redist
 
-            binDir = os.path.join(self.workDir, 'src', 'src', 'pm', 'mpd')
-            patterns = [(binDir, 'bin', 'mpi*.py*'),
-                        (binDir, 'bin', 'mpd*.py*'),
+            binDir = os.path.join(self.workDir, 'src', 'src', 'pm', 'hydra', '.libs')
+            patterns = [(binDir, 'bin', 'mpiexec.hydra'),
+                        (binDir, 'bin', 'hydra_nameserver'),
+                        (binDir, 'bin', 'hydra_persist'),
+                        (binDir, 'bin', 'hydra_pmi_proxy'),
                         ]
 
             libDir = os.path.join(self.workDir, 'src', 'lib')
@@ -838,48 +840,88 @@ class MVAPICH2(GNUPackage):
                     tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
                     copyX(path, tgtPath)
 
-            patterns = [(binDir, 'bin', 'mpi*.py*'),
-                        (binDir, 'bin', 'mpd*.py*'),
-                        ]
-            for srcDir,dst,pat in patterns:
-                dstDir = os.path.join(tgtDir, dst)
-                for path in glob.glob('%s/%s' % (srcDir,pat)):
-                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
-                    ldst = os.path.join(dstDir, os.path.splitext(os.path.basename(path))[0])
-                    lsrc = os.path.basename(tgtPath)
-                    os.symlink(lsrc, ldst)
-            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun.py'))
-            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun'))
+            os.symlink('mpiexec.hydra', os.path.join(tgtDir, 'bin', 'mpiexec'))
+            os.symlink('mpiexec.hydra', os.path.join(tgtDir, 'bin', 'mpirun'))
 
             # {{{ script
             script='''#!/bin/bash
-prepare_mpi() {
-  MPDTRACE_EXEC=mpdtrace
-  MPD_EXEC=mpd
 
-  $MPDTRACE_EXEC > /dev/null
-  if [[ $? -ne 0 ]]
-  then
-    echo "Info: mpd is not running. Trying to start mpd..."
-
-    # Create .mpd.conf if necessary
-    if [ ! -f $HOME/.mpd.conf ]
-    then
-      echo "MPD_SECRETWORD=cogenda228998791" > $HOME/.mpd.conf
-      chmod 600 $HOME/.mpd.conf
+schd_name() {
+    if   [[ "x" != "x${LSB_JOBID}" ]]; then
+        echo "LSF"; exit;
+    elif [[ "x" != "x${SLURM_JOB_ID}" ]]; then
+        echo "SLURM"; exit;
+    else
+        echo "UNKNOWN"; exit
     fi
-    $MPD_EXEC --daemon
-    sleep 2
-    if [[ $? -ne 0 ]]
-    then
-      echo "Error: can not start mpd."
-      exit 1
-    fi
-  fi
 }
+
+schd_job_id() {
+    case $(schd_name) in
+        LSF     ) echo ${LSB_JOBID}    ;;
+        SLURM   ) echo ${SLURM_JOB_ID} ;;
+        *       ) echo $(hostname):$$  ;;
+    esac
+}
+
+prepare_mpi() {
+
+    do_lsf_mfile() {
+        while [ $# -gt 0 ]
+        do
+            echo $1:$2
+            shift 2
+        done
+    }
+
+    case $(schd_name) in
+        LSF     )
+            mfile=hosts.$(schd_job_id)
+            [[ ! -f $mfile ]] && do_lsf_mfile ${LSB_MCPU_HOSTS} > $mfile
+            echo $mfile
+            exit 0
+            ;;
+        SLURM   )
+            mfile=hosts.$(schd_job_id)
+            echo "not implemented"
+            exit 255
+            ;;
+        *       )
+            echo "do nothing with host file..."
+            echo 0
+            exit 0
+            ;;
+    esac
+}
+
+cleanup_mpi() {
+    case $(schd_name) in
+        LSF     )
+            mfile=hosts.$(schd_job_id)
+            [[ -f $mfile ]] && rm $mfile
+            ;;
+        SLURM   )
+            mfile=hosts.$(schd_job_id)
+            [[ -f $mfile ]] && rm $mfile
+            ;;
+        *       )
+            ;;
+    esac
+}
+
+count_mpi_proc() {
+    mfile=$1
+    cnt=0
+    for n in $(cut -f2 -d: $mfile)
+    do 
+        let cnt+=$n; 
+    done
+    echo $cnt
+}
+
 '''
             # }}}
-            writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mpich2.sh'), script, mode=0755)
+            writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mvapich2.sh'), script, mode=0755)
     # }}}
 
 __all__.append('MVAPICH2')
