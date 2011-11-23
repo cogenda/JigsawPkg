@@ -694,7 +694,7 @@ __all__.append('MKL')
 class MPICH2(GNUPackage):
     name = 'mpich2'
     featureList = ['mpich2', 'mpich2-redist']
-    version='1.4.1-p1'
+    version='1.4.1-p1-1'
     src_url = ['/home/public/software/cluster/mpich2-1.4.1p1.tar.gz',
                'http://www.mcs.anl.gov/research/projects/mpich2/downloads/tarballs/1.4.1p1/mpich2-1.4.1p1.tar.gz',
               ]
@@ -716,9 +716,11 @@ class MPICH2(GNUPackage):
         elif obj=='mpich2-redist':
             # mpich2-redist
 
-            binDir = os.path.join(self.workDir, 'src', 'src', 'pm', 'mpd')
-            patterns = [(binDir, 'bin', 'mpi*.py*'),
-                        (binDir, 'bin', 'mpd*.py*'),
+            binDir = os.path.join(self.workDir, 'src', 'src', 'pm', 'hydra', '.libs')
+            patterns = [(binDir, 'bin', 'mpiexec.hydra'),
+                        (binDir, 'bin', 'hydra_nameserver'),
+                        (binDir, 'bin', 'hydra_persist'),
+                        (binDir, 'bin', 'hydra_pmi_proxy'),
                         ]
 
             libDir = os.path.join(self.workDir, 'src', 'lib')
@@ -731,47 +733,123 @@ class MPICH2(GNUPackage):
                     tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
                     copyX(path, tgtPath)
 
-            patterns = [(binDir, 'bin', 'mpi*.py*'),
-                        (binDir, 'bin', 'mpd*.py*'),
-                        ]
-            for srcDir,dst,pat in patterns:
-                dstDir = os.path.join(tgtDir, dst)
-                for path in glob.glob('%s/%s' % (srcDir,pat)):
-                    tgtPath = os.path.join(dstDir, os.path.relpath(path, srcDir))
-                    ldst = os.path.join(dstDir, os.path.splitext(os.path.basename(path))[0])
-                    lsrc = os.path.basename(tgtPath)
-                    os.symlink(lsrc, ldst)
-            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun.py'))
-            os.symlink('mpiexec.py', os.path.join(tgtDir, 'bin', 'mpirun'))
+            os.symlink('mpiexec.hydra', os.path.join(tgtDir, 'bin', 'mpiexec'))
+            os.symlink('mpiexec.hydra', os.path.join(tgtDir, 'bin', 'mpirun'))
 
             # {{{ script
             script='''#!/bin/bash
+schd_name() {
+    if   [[ "x" != "x${LSB_JOBID}" ]]; then
+        echo "LSF"; exit;
+    elif [[ "x" != "x${SLURM_JOB_ID}" ]]; then
+        echo "SLURM"; exit;
+    else
+        echo "UNKNOWN"; exit
+    fi
+}
+
+schd_job_id() {
+    case $(schd_name) in
+        LSF     ) echo ${LSB_JOBID}    ;;
+        SLURM   ) echo ${SLURM_JOB_ID} ;;
+        *       ) echo $(hostname):$$  ;;
+    esac
+}
+
 prepare_mpi() {
-  MPDTRACE_EXEC=mpdtrace
-  MPD_EXEC=mpd
+    split_str() {
+        while IFS=$2 read -ra ADDR; do
+            for i in "${ADDR[@]}"; do
+                echo "$i"
+            done
+        done <<< "$1"
+    }
 
-  $MPDTRACE_EXEC > /dev/null
-  if [[ $? -ne 0 ]]
-  then
-    echo "Info: mpd is not running. Trying to start mpd..."
+    do_lsf_mfile() {
+        while [ $# -gt 0 ]
+        do
+            echo $1:$2
+            shift 2
+        done
+    }
 
-    # Create .mpd.conf if necessary
-    if [ ! -f $HOME/.mpd.conf ]
-    then
-      echo "MPD_SECRETWORD=cogenda228998791" > $HOME/.mpd.conf
-      chmod 600 $HOME/.mpd.conf
-    fi
-    $MPD_EXEC --daemon
-    sleep 2
-    if [[ $? -ne 0 ]]
-    then
-      echo "Error: can not start mpd."
-      exit 1
-    fi
-  fi
+    do_slurm_mfile() {
+        [[ "x$SLURM_JOB_NODELIST" == "x" ]] && LNODE=$SLURM_NODELIST || LNODE=$SLURM_JOB_NODELIST
+        [[ "x$SLURM_JOB_CPUS_PER_NODE" == "x" ]] && NPROC=$SLURM_CPUS_ON_NODE || NPROC=$SLURM_JOB_CPUS_PER_NODE
+        LNODE=( $(split_str "$LNODE" ",") )
+        NPROC=$(split_str "$NPROC" ",")
+
+        cnt=0
+        for tok in $NPROC
+        do
+            if [[ "$tok" =~ '([0-9]+)\\(x([0-9]+)\\)' ]]
+            then
+                nproc=${BASH_REMATCH[1]}
+                nnode=${BASH_REMATCH[2]}
+            else
+                nproc=$tok
+                nnode=1
+            fi
+        
+            let endcnt=$cnt+$nnode-1
+            for i in $(seq $cnt $endcnt)
+            do
+                echo ${LNODE[$i]}:$nproc
+            done
+            let cnt=$cnt+$nnode
+        done
+    }
+
+    case $(schd_name) in
+        LSF     )
+            mfile=hosts.$(schd_job_id)
+            [[ ! -f $mfile ]] && do_lsf_mfile ${LSB_MCPU_HOSTS} > $mfile
+            echo $mfile
+            exit 0
+            ;;
+        SLURM   )
+            # invoked with srun: only rank0 process should continue to start mpiexec
+            [[ $SLURM_PROCID -gt 0 ]] && exit 255
+
+            mfile=hosts.$(schd_job_id)
+            [[ ! -f $mfile ]] && do_slurm_mfile > $mfile
+            echo $mfile
+            exit 0
+            ;;
+        *       )
+            # do nothing with host file...
+            echo 0
+            exit 0
+            ;;
+    esac
+}
+
+cleanup_mpi() {
+    case $(schd_name) in
+        LSF     )
+            mfile=hosts.$(schd_job_id)
+            [[ -f $mfile ]] && rm $mfile
+            ;;
+        SLURM   )
+            mfile=hosts.$(schd_job_id)
+            [[ -f $mfile ]] && rm $mfile
+            ;;
+        *       )
+            ;;
+    esac
+}
+
+count_mpi_proc() {
+    mfile=$1
+    cnt=0
+    for n in $(cut -f2 -d: $mfile)
+    do 
+        let cnt+=$n; 
+    done
+    echo $cnt
 }
 '''
-            # }}}
+			# }}}
             writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mpich2.sh'), script, mode=0755)
     # }}}
 
@@ -845,7 +923,6 @@ class MVAPICH2(GNUPackage):
 
             # {{{ script
             script='''#!/bin/bash
-
 schd_name() {
     if   [[ "x" != "x${LSB_JOBID}" ]]; then
         echo "LSF"; exit;
@@ -865,12 +942,46 @@ schd_job_id() {
 }
 
 prepare_mpi() {
+    split_str() {
+        while IFS=$2 read -ra ADDR; do
+            for i in "${ADDR[@]}"; do
+                echo "$i"
+            done
+        done <<< "$1"
+    }
 
     do_lsf_mfile() {
         while [ $# -gt 0 ]
         do
             echo $1:$2
             shift 2
+        done
+    }
+
+    do_slurm_mfile() {
+        [[ "x$SLURM_JOB_NODELIST" == "x" ]] && LNODE=$SLURM_NODELIST || LNODE=$SLURM_JOB_NODELIST
+        [[ "x$SLURM_JOB_CPUS_PER_NODE" == "x" ]] && NPROC=$SLURM_CPUS_ON_NODE || NPROC=$SLURM_JOB_CPUS_PER_NODE
+        LNODE=( $(split_str "$LNODE" ",") )
+        NPROC=$(split_str "$NPROC" ",")
+
+        cnt=0
+        for tok in $NPROC
+        do
+            if [[ "$tok" =~ '([0-9]+)\\(x([0-9]+)\\)' ]]
+            then
+                nproc=${BASH_REMATCH[1]}
+                nnode=${BASH_REMATCH[2]}
+            else
+                nproc=$tok
+                nnode=1
+            fi
+        
+            let endcnt=$cnt+$nnode-1
+            for i in $(seq $cnt $endcnt)
+            do
+                echo ${LNODE[$i]}:$nproc
+            done
+            let cnt=$cnt+$nnode
         done
     }
 
@@ -882,12 +993,16 @@ prepare_mpi() {
             exit 0
             ;;
         SLURM   )
+            # invoked with srun: only rank0 process should continue to start mpiexec
+            [[ $SLURM_PROCID -gt 0 ]] && exit 255
+
             mfile=hosts.$(schd_job_id)
-            echo "not implemented"
-            exit 255
+            [[ ! -f $mfile ]] && do_slurm_mfile > $mfile
+            echo $mfile
+            exit 0
             ;;
         *       )
-            echo "do nothing with host file..."
+            # do nothing with host file...
             echo 0
             exit 0
             ;;
@@ -918,9 +1033,9 @@ count_mpi_proc() {
     done
     echo $cnt
 }
-
 '''
-            # }}}
+			# }}}
+
             writeFile(tgtDir, os.path.join('etc', 'profile.d', 'mvapich2.sh'), script, mode=0755)
     # }}}
 
