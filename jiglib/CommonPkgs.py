@@ -694,14 +694,14 @@ __all__.append('MKL')
 class MPICH2(GNUPackage):
     name = 'mpich2'
     featureList = ['mpich2', 'mpich2-redist']
-    version='1.4.1-p1-1'
+    version='1.4.1-p1-2'
     src_url = ['/home/public/software/cluster/mpich2-1.4.1p1.tar.gz',
                'http://www.mcs.anl.gov/research/projects/mpich2/downloads/tarballs/1.4.1p1/mpich2-1.4.1p1.tar.gz',
               ]
     make_cmd = ['gmake']
 
     env = {'CFLAGS': '-fPIC', 'CXXFLAGS': '-fPIC', 'FFLAGS': '-fPIC'}
-    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--enable-smpcoll', '--with-pm=mpd', '--with-device=ch3:nemesis']
+    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--enable-smpcoll', '--with-pm=hydra', '--with-device=ch3:nemesis']
     optionList = ['shared', '32bit']
 
     conf_args_shared_append = ['--enable-shared', '--disable-rpath']
@@ -867,7 +867,7 @@ class MVAPICH2(GNUPackage):
     make_cmd = ['gmake']
     
     env = {'CFLAGS': '-fPIC', 'CXXFLAGS': '-fPIC', 'FFLAGS': '-fPIC'}
-    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--with-pm=hydra']
+    conf_args = ['--prefix=${TGTDIR}', '--enable-fast', '--enable-smpcoll', '--with-pm=hydra']
     optionList = ['shared', '32bit', 'smp', 'ib']
 
     conf_args_shared_append = ['--enable-shared', '--disable-rpath']
