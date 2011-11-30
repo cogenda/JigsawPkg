@@ -239,7 +239,7 @@ class Package(object):
                         return '', False
                     if arg:
                         ret = cmd_n_log(['git', 'tag', '-l', arg], cwd=repoDir, logger=self.logger)
-                        if len(ret)>0: # this is a tag
+                        if len(ret)>0 and len(ret[0])>0: # this is a tag
                             cmd_n_log(['git', 'checkout', '-b', 'build-%s'%arg, arg],
                                       cwd=repoDir, logger=self.logger)
                         else:  # not a tag, should be a branch
